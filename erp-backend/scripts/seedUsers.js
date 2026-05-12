@@ -9,8 +9,8 @@ const USERS = [
   {
     firstName: 'Admin',
     lastName: 'Principal',
-    email: 'admin@test.com',
-    password: 'password',
+    email: 'admin@admin.com',
+    password: 'admin@admin.com',
     role: 'admin_principal',
     department: 'administration',
     isActive: true

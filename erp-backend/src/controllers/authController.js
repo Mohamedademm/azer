@@ -12,9 +12,9 @@ exports.register = async (req, res) => {
     // Vérifier si l'utilisateur existe
     const userExists = await User.findOne({ email });
     if (userExists) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Un utilisateur avec cet email existe déjà' 
+      return res.status(400).json({
+        success: false,
+        message: 'Un utilisateur avec cet email existe déjà'
       });
     }
 
@@ -54,9 +54,9 @@ exports.register = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      message: error.message 
+    res.status(500).json({
+      success: false,
+      message: error.message
     });
   }
 };
@@ -66,24 +66,24 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   console.log('🔥 LOGIN EXÉCUTÉ - req.url:', req.url);
   console.log('   req.body:', req.body);
-  
+
   try {
     const { email, password } = req.body;
 
     // Vérifier email et mot de passe
     const user = await User.findOne({ email }).select('+password');
     if (!user || !(await user.comparePassword(password))) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Email ou mot de passe incorrect' 
+      return res.status(401).json({
+        success: false,
+        message: 'Email ou mot de passe incorrect'
       });
     }
 
     // Vérifier si compte actif
     if (!user.isActive) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'This account is deactivated, please contact the admin.' 
+      return res.status(401).json({
+        success: false,
+        message: 'This account is deactivated, please contact the admin.'
       });
     }
 
@@ -119,9 +119,9 @@ exports.login = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      message: error.message 
+    res.status(500).json({
+      success: false,
+      message: error.message
     });
   }
 };
@@ -150,22 +150,22 @@ exports.logout = async (req, res) => {
 exports.refreshToken = async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    
+
     if (!refreshToken) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Refresh token requis' 
+      return res.status(400).json({
+        success: false,
+        message: 'Refresh token requis'
       });
     }
 
     // Vérifier le refresh token
     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-    
+
     const user = await User.findById(decoded.id);
     if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Utilisateur non trouvé' 
+      return res.status(401).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
       });
     }
 
@@ -177,9 +177,9 @@ exports.refreshToken = async (req, res) => {
       token: newToken
     });
   } catch (error) {
-    res.status(401).json({ 
-      success: false, 
-      message: 'Refresh token invalide' 
+    res.status(401).json({
+      success: false,
+      message: 'Refresh token invalide'
     });
   }
 };

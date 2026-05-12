@@ -79,27 +79,27 @@ const buildStockDashboard = async (period = 30) => {
     categories,
     topFournisseurs,
   ] = await Promise.all([
-    // 1. KPI: Total produits ajoutés dans CETTE période
-    Product.countDocuments({ ...activeProductMatch, ...productPeriodMatch }), 
+    // 1. KPI: Total produits actifs (GLOBAL)
+    Product.countDocuments(activeProductMatch), 
     
-    // 2. KPI: Produits en stock (actifs dans cette période)
-    Product.countDocuments({ ...activeProductMatch, stock: { $gt: 0 }, ...productPeriodMatch }),
+    // 2. KPI: Produits en stock (GLOBAL)
+    Product.countDocuments({ ...activeProductMatch, stock: { $gt: 0 } }),
     
-    // 3. KPI: Produits tombés en rupture dans cette période
-    Product.countDocuments({ ...activeProductMatch, stock: { $lte: 0 }, updatedAt: { $gte: startDate } }),
+    // 3. KPI: Produits en rupture (GLOBAL)
+    Product.countDocuments({ ...activeProductMatch, stock: { $lte: 0 } }),
 
-    // 4. KPI: Stock faible détecté récemment
+    // 4. KPI: Stock faible (GLOBAL)
     Product.countDocuments({
       ...activeProductMatch,
       $expr: { $lte: ['$stock', { $ifNull: ['$minStock', 10] }] },
-      updatedAt: { $gte: startDate }
+      stock: { $gt: 0 }
     }),
 
-    // 5. Categories créées ou actives
-    Category.countDocuments({ createdAt: { $gte: startDate } }),
+    // 5. Categories (GLOBAL)
+    Category.countDocuments(),
     
-    // 6. Fournisseurs actifs dans cette période
-    Supplier.countDocuments({ status: { $ne: 'inactif' }, updatedAt: { $gte: startDate } }),
+    // 6. Fournisseurs actifs (GLOBAL)
+    Supplier.countDocuments({ status: { $ne: 'inactif' } }),
     
     // 7. Totaux des mouvements (ENTREES / SORTIES) - Dynamique
     StockMovement.aggregate([
@@ -116,9 +116,9 @@ const buildStockDashboard = async (period = 30) => {
       },
     ]),
 
-    // 8. Valeur de stock des produits concernés
+    // 8. Valeur de stock (GLOBAL - tous produits actifs)
     Product.aggregate([
-      { $match: { ...activeProductMatch, updatedAt: { $gte: startDate } } },
+      { $match: activeProductMatch },
       {
         $group: {
           _id: null,
