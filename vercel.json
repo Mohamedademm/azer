@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "buildCommand": "cd Front && npm install && npm run build",
+  "outputDirectory": "Front/dist",
+  "installCommand": "cd erp-backend && npm install",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
