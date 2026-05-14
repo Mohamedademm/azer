@@ -127,7 +127,7 @@ const TypeDepenses = ({ data }) => {
   /* ================= STYLE ================= */
   const btnStyle = {
     background: '#1e293b',
-    color: '#e2e8f0',
+    color: 'var(--fg)',
     border: '1px solid rgba(148,163,184,.2)',
     padding: '6px 10px',
     borderRadius: '6px',

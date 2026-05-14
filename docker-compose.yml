@@ -1,8 +1,23 @@
-version: '3.8'
-
 services:
+  mongo:
+    image: mongo:7
+    container_name: azer_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - azer_network
+
   backend:
-    build: 
+    build:
       context: ./erp-backend
       dockerfile: Dockerfile
     container_name: azer_backend
@@ -11,13 +26,19 @@ services:
     env_file:
       - ./erp-backend/.env
     environment:
+      - PORT=3000
+      - MONGODB_URI=mongodb://mongo:27017/azer_erp
       - FRONTEND_URL=http://localhost:80
+      - FRONTEND_URLS=http://localhost,http://127.0.0.1,http://localhost:5173,http://127.0.0.1:5173
+    depends_on:
+      mongo:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - azer_network
 
   frontend:
-    build: 
+    build:
       context: ./Front
       dockerfile: Dockerfile
     container_name: azer_frontend
@@ -32,3 +53,6 @@ services:
 networks:
   azer_network:
     driver: bridge
+
+volumes:
+  mongo_data:

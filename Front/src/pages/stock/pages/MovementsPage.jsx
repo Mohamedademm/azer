@@ -1,253 +1,336 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ArrowLeftRight, Search, Plus, Trash2, Calendar, Filter, ArrowUpRight, ArrowDownRight, PackageOpen, AlertTriangle } from 'lucide-react'
 import stockMovementService from '../../../services/stockMovementService'
 import productService from '../../../services/productService'
-import supplierService from '../../../services/supplierService'
-import './MovementsPage.css' 
-import {
-  extractApiErrorMessage,
-  mapMovementToUi,
-  mapProductToUi,
-  mapSupplierToUi,
-  pickList,
-} from '../../../utils/frontendApiAdapters'
+import { extractApiErrorMessage, mapMovementToUi, mapProductToUi, pickList } from '../../../utils/frontendApiAdapters'
 import Modal from '../../../components/common/Modal'
 import FormField from '../../../components/common/FormField'
 
-const MV = { IN: "entrée", OUT: "sortie" }
+const MV = { IN: 'entrée', OUT: 'sortie' }
+const inputClass = 'form-input'
+const selectClass = 'form-input cursor-pointer'
 
-function MovementsPage() {
-  // --- Data States ---
-  const [mov, setMov] = useState([])
-  const [prod, setProd] = useState([])
-  const [supp, setSupp] = useState([])
+export default function MovementsPage() {
+  const [movements, setMovements] = useState([])
+  const [products, setProducts]   = useState([])
+  const [stats, setStats]         = useState({ global: { totalEntries: 0, totalExits: 0, totalMovements: 0, uniqueProducts: 0 } })
+  const [loading, setLoading]     = useState(true)
   
-  // 1. Stats State
-  const [stats, setStats] = useState({
-    global: { totalEntries: 0, totalExits: 0, totalMovements: 0, uniqueProducts: 0 },
-    topProducts: []
-  });
+  // UI States
+  const [showFilters, setShowFilters] = useState(false)
+  const [modalOpen, setModalOpen]     = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  
+  // Forms & Filters
+  const [filters, setFilters] = useState({ movement: 'all', searchProduct: '', startDate: '', endDate: '' })
+  const [formData, setFormData] = useState({ productId: '', product: '', type: MV.IN, quantity: '', date: new Date().toISOString().split('T')[0], note: '' })
+  const [formErrors, setFormErrors] = useState({})
+  const [toastMsg, setToastMsg] = useState({ type: '', text: '' })
 
-  // --- UI States ---
-  const [f, setF] = useState({ movement: "all", date: "", searchProduct: "", startDate: "", endDate: "" })
-  const [sdp, setSdp] = useState(false)
-  const [mod, setMod] = useState(false)
-  const [mf, setMf] = useState({ productId: "", product: "", type: MV.IN, quantity: "", date: new Date().toISOString().split('T')[0], note: "" })
-  const [fe, setFe] = useState({})
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null })
+  const showToast = (type, text) => {
+    setToastMsg({ type, text })
+    setTimeout(() => setToastMsg({ type: '', text: '' }), 3500)
+  }
 
-  // --- Load Data (Corrected with Stats) ---
   const loadData = useCallback(async () => {
+    setLoading(true)
     try {
-      const [movementRes, productRes, supplierRes, statsRes] = await Promise.all([
+      const [movRes, prodRes, statsRes] = await Promise.all([
         stockMovementService.getAll({ limit: 200 }),
         productService.getAll({ limit: 200 }),
-        supplierService.getAll({ limit: 200 }),
-        stockMovementService.getStats() // Jib el stats mel backend
+        stockMovementService.getStats(),
       ])
-
-      setMov(pickList(movementRes, ['movements', 'data']).map(mapMovementToUi))
-      setProd(pickList(productRes, ['products', 'data']).map(mapProductToUi))
-      setSupp(pickList(supplierRes, ['suppliers', 'data']).map(mapSupplierToUi))
-      
-      if (statsRes) {
-        setStats({
-          global: statsRes.global,
-          topProducts: statsRes.topProducts
-        });
-      }
-    } catch (error) {
-      console.error('MovementsPage load error:', error)
-    }
+      setMovements(pickList(movRes, ['movements', 'data']).map(mapMovementToUi))
+      setProducts(pickList(prodRes, ['products', 'data']).map(mapProductToUi))
+      if (statsRes) setStats({ global: statsRes.global, topProducts: statsRes.topProducts })
+    } catch (e) { console.error(e) }
+    finally { setLoading(false) }
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
 
-  // --- Filters Logic ---
-  const fm = useMemo(() => mov.filter(m =>
-    (f.movement === 'all' || m.type === f.movement) &&
-    (!f.date || m.date === f.date) &&
-    (!f.startDate || m.date >= f.startDate) &&
-    (!f.endDate || m.date <= f.endDate) &&
-    (!f.searchProduct || m.product.toLowerCase().includes(f.searchProduct.toLowerCase()))
-  ), [mov, f])
+  const filtered = useMemo(() => movements.filter(m =>
+    (filters.movement === 'all' || m.type === filters.movement) &&
+    (!filters.startDate || m.date >= filters.startDate) &&
+    (!filters.endDate || m.date <= filters.endDate) &&
+    (!filters.searchProduct || m.product.toLowerCase().includes(filters.searchProduct.toLowerCase()))
+  ), [movements, filters])
 
-  const updateFilter = (k, v) => setF(prev => ({ ...prev, [k]: v }))
-  const clearFilters = useCallback(() => setF({ movement: "all", date: "", searchProduct: "", startDate: "", endDate: "" }), [])
+  const resetForm = () => {
+    setFormData({ productId: '', product: '', type: MV.IN, quantity: '', date: new Date().toISOString().split('T')[0], note: '' })
+    setFormErrors({})
+  }
 
-  // --- Form Handlers ---
-  const vMv = useCallback(() => {
-    const e = {}
-    if (!mf.productId) e.productId = "Produit requis"
-    if (!mf.quantity || parseInt(mf.quantity) <= 0) e.quantity = "Quantité > 0"
-    if (mf.type === MV.OUT && mf.productId) {
-      const p = prod.find(p => String(p.id) === String(mf.productId))
-      if (p && parseInt(mf.quantity) > p.stock) e.quantity = `Stock insuffisant (${p.stock})`
-    }
-    return e
-  }, [mf, prod])
-
-  const rMv = useCallback(() => {
-    setMf({ productId: "", product: "", type: MV.IN, quantity: "", date: new Date().toISOString().split('T')[0], note: "" })
-    setFe({})
-  }, [])
-
-  const hdlProdChange = useCallback(e => {
+  const handleProductChange = (e) => {
     const id = e.target.value
-    const p = prod.find(p => String(p.id) === String(id))
-    if (p) setMf(prev => ({ ...prev, productId: id, product: p.name }))
-  }, [prod])
-
-  const hdlAddMvRemote = async () => {
-    const e = vMv(); if (Object.keys(e).length) return setFe(e)
-    try {
-      if (mf.type === MV.IN) await stockMovementService.addEntry({ productId: mf.productId, quantity: mf.quantity, note: mf.note })
-      else await stockMovementService.addExit({ productId: mf.productId, quantity: mf.quantity, note: mf.note })
-      await loadData()
-      rMv(); setMod(false)
-    } catch (error) {
-      window.alert(extractApiErrorMessage(error, "Impossible d'ajouter le mouvement"))
+    const p = products.find(prod => String(prod.id) === String(id))
+    if (p) {
+      setFormData(prev => ({ ...prev, productId: id, product: p.name }))
+      setFormErrors(prev => { const n = { ...prev }; delete n.productId; return n })
     }
   }
 
-  const hdlDelMvRemote = async () => {
-    try {
-      await stockMovementService.delete(deleteModal.id)
-      await loadData()
-      setDeleteModal({ isOpen: false, id: null })
-    } catch (error) {
-      window.alert(extractApiErrorMessage(error, "Impossible de supprimer le mouvement"))
+  const validate = () => {
+    const e = {}
+    if (!formData.productId) e.productId = 'Produit requis'
+    if (!formData.quantity || parseInt(formData.quantity) <= 0) e.quantity = 'Quantité invalide (> 0)'
+    if (formData.type === MV.OUT && formData.productId) {
+      const p = products.find(prod => String(prod.id) === String(formData.productId))
+      if (p && parseInt(formData.quantity) > p.stock) e.quantity = `Stock insuffisant (${p.stock} restants)`
     }
+    return e
+  }
+
+  const handleSave = async () => {
+    const e = validate()
+    if (Object.keys(e).length) return setFormErrors(e)
+    try {
+      const payload = { productId: formData.productId, quantity: formData.quantity, note: formData.note }
+      if (formData.type === MV.IN) await stockMovementService.addEntry(payload)
+      else await stockMovementService.addExit(payload)
+      
+      await loadData()
+      showToast('success', 'Mouvement enregistré')
+      setModalOpen(false)
+      resetForm()
+    } catch (err) { showToast('error', extractApiErrorMessage(err, "Erreur d'enregistrement")) }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      await stockMovementService.delete(deleteTarget.id)
+      await loadData()
+      showToast('success', 'Mouvement supprimé')
+      setDeleteTarget(null)
+    } catch (err) { showToast('error', extractApiErrorMessage(err, 'Erreur de suppression')) }
   }
 
   return (
-    <div className="movements-tab">
-      <header className="tab-header">
-        <h2>🔄 Mouvements</h2>
-        <div className="header-buttons">
-          <button className="btn-secondary" onClick={clearFilters}>🧹 Effacer</button>
-          <button className="btn-primary" onClick={() => { rMv(); setMod(true) }}>+ Nouveau</button>
-        </div>
-      </header>
-
-      {/* Stats Dashboard */}
-      <div className="stats-container">
-        <div className="stat-card">
-          <span>Mouvements Total</span>
-          <strong>{stats.global.totalMovements}</strong>
-        </div>
-        <div className="stat-card success">
-          <span>Total Entrées (Qté)</span>
-          <strong>{stats.global.totalEntries}</strong>
-        </div>
-        <div className="stat-card warning">
-          <span>Total Sorties (Qté)</span>
-          <strong>{stats.global.totalExits}</strong>
-        </div>
-        <div className="stat-card info">
-          <span>Produits Impactés</span>
-          <strong>{stats.global.uniqueProducts}</strong>
-        </div>
-      </div>
-
-      {/* Search & Filters */}
-      <div className="movements-search-bar">
-        <div className="search-row">
-          <FormField label="Rechercher" id="search-mvmt">
-            <input type="text" placeholder="Produit..." value={f.searchProduct} onChange={e => updateFilter('searchProduct', e.target.value)} className="search-input" />
-          </FormField>
-          <FormField label="Date" id="search-date">
-            <input type="date" value={f.date} onChange={e => updateFilter('date', e.target.value)} className="search-input" />
-          </FormField>
-          <button className="btn-toggle-date" onClick={() => setSdp(!sdp)}>{sdp ? "Masquer" : "Afficher"} plage</button>
-        </div>
-        {sdp && (
-          <div className="date-range-picker">
-            <FormField label="Début" id="start"><input type="date" value={f.startDate} onChange={e => updateFilter('startDate', e.target.value)} className="search-input" /></FormField>
-            <FormField label="Fin" id="end"><input type="date" value={f.endDate} onChange={e => updateFilter('endDate', e.target.value)} className="search-input" /></FormField>
-          </div>
+    <div className="flex flex-col gap-6">
+      {/* ── Toast ── */}
+      <AnimatePresence>
+        {toastMsg.text && (
+          <motion.div initial={{ opacity: 0, y: -16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10, scale: 0.97 }}
+            className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-[var(--shadow-lg)] text-sm font-semibold border ${toastMsg.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 border-red-500/25 text-red-600 dark:text-red-400'}`}>
+            {toastMsg.text}
+          </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-indigo-500/12 text-indigo-500">
+            <ArrowLeftRight size={20} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-[var(--fg)]">Mouvements de stock</h1>
+            <p className="text-xs text-[var(--fg-muted)]">Historique des entrées et sorties</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowFilters(v => !v)} className={`flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium border transition-all ${showFilters ? 'bg-indigo-500/12 border-indigo-500/25 text-indigo-600 dark:text-indigo-400' : 'border-[var(--border)] bg-[var(--bg-card)] text-[var(--fg-muted)] hover:bg-[var(--bg-subtle)]'}`}>
+            <Filter size={14} /> Filtres
+          </button>
+          <button onClick={() => { resetForm(); setModalOpen(true) }} className="flex items-center gap-2 h-9 px-5 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm shadow-indigo-500/25 transition-all hover:-translate-y-px">
+            <Plus size={16} /> Nouveau mouvement
+          </button>
+        </div>
       </div>
 
-      <div className="movements-filters">
+      {/* ── Stats ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { value: 'all', label: 'Tous', count: fm.length },
-          { value: MV.IN, label: 'Entrées', count: fm.filter(m => m.type === MV.IN).length },
-          { value: MV.OUT, label: 'Sorties', count: fm.filter(m => m.type === MV.OUT).length }
-        ].map(fil => (
-          <button key={fil.value} className={`filter-btn ${f.movement === fil.value ? 'active' : ''}`} onClick={() => updateFilter('movement', fil.value)}>
-            {fil.label} ({fil.count})
-          </button>
+          { label: 'Total Mouvements', value: stats.global.totalMovements, color: '#6366f1', bg: 'rgba(99,102,241,0.1)',   icon: <ArrowLeftRight size={18} /> },
+          { label: 'Entrées (Qté)',    value: stats.global.totalEntries,   color: '#10b981', bg: 'rgba(16,185,129,0.1)',   icon: <ArrowDownRight size={18} /> },
+          { label: 'Sorties (Qté)',    value: stats.global.totalExits,     color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',   icon: <ArrowUpRight size={18} /> },
+          { label: 'Produits impactés',value: stats.global.uniqueProducts, color: '#ec4899', bg: 'rgba(236,72,153,0.1)', icon: <PackageOpen size={18} /> },
+        ].map(s => (
+          <div key={s.label} className="flex items-center gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--shadow-sm)]">
+            <div className="flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0" style={{ background: s.bg, color: s.color }}>{s.icon}</div>
+            <div className="min-w-0">
+              <p className="text-xl font-bold text-[var(--fg)] leading-none truncate">{s.value}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--fg-muted)] mt-1 truncate">{s.label}</p>
+            </div>
+          </div>
         ))}
       </div>
 
-      {/* Movements Table */}
-      <div className="movements-table-container">
-        <table className="movements-table">
-          <thead>
-            <tr><th>ID</th><th>Date</th><th>Produit</th><th>Fournisseur</th><th>Type</th><th>Qté</th><th>Note</th><th>Utilisateur</th><th>Actions</th></tr>
-          </thead>
-          <tbody>
-            {fm.length ? fm.map(m => {
-              const product = prod.find(p => p.id === m.productId)
-              const supplier = product ? supp.find(s => s.id === product.supplierId) : null
-              return (
-                <tr key={m.id}>
-                  <td style={{ fontSize: '0.75rem', color: '#718096', fontFamily: 'monospace' }}>{m.id}</td>
-                  <td><time dateTime={m.date}>{new Date(m.date).toLocaleDateString('fr-FR')}</time></td>
-                  <td className="product-name">{m.product}</td>
-                  <td>{supplier?.name || '-'}</td>
-                  <td>
-                    <span className={`movement-type ${m.type}`} style={{ background: m.type === MV.IN ? "#c6f6d5" : "#fed7d7", color: m.type === MV.IN ? "#22543d" : "#742a2a" }}>
-                      {m.type === MV.IN ? "⬆️ Entrée" : "⬇️ Sortie"}
-                    </span>
+      {/* ── Filters ── */}
+      <AnimatePresence>
+        {showFilters && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="flex flex-col gap-1.5 lg:col-span-2">
+                <label className="text-[12px] font-semibold text-[var(--fg-muted)]">Rechercher un produit</label>
+                <div className="relative">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] pointer-events-none" />
+                  <input type="text" value={filters.searchProduct} onChange={e => setFilters(f => ({ ...f, searchProduct: e.target.value }))} className="form-input pl-8 h-9" placeholder="Nom du produit..." />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-semibold text-[var(--fg-muted)]">Date de début</label>
+                <input type="date" value={filters.startDate} onChange={e => setFilters(f => ({ ...f, startDate: e.target.value }))} className="form-input h-9" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-semibold text-[var(--fg-muted)]">Date de fin</label>
+                <input type="date" value={filters.endDate} onChange={e => setFilters(f => ({ ...f, endDate: e.target.value }))} className="form-input h-9" />
+              </div>
+              
+              <div className="col-span-full pt-2 mt-2 border-t border-[var(--border)] flex items-center justify-between">
+                <div className="flex gap-2 bg-[var(--bg-subtle)] p-1 rounded-lg">
+                  {[
+                    { value: 'all', label: 'Tous' },
+                    { value: MV.IN, label: 'Entrées' },
+                    { value: MV.OUT, label: 'Sorties' }
+                  ].map(tab => (
+                    <button key={tab.value} onClick={() => setFilters(f => ({ ...f, movement: tab.value }))}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${filters.movement === tab.value ? 'bg-[var(--bg-card)] shadow text-[var(--fg)]' : 'text-[var(--fg-muted)] hover:text-[var(--fg)]'}`}>
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                {(filters.searchProduct || filters.startDate || filters.endDate || filters.movement !== 'all') && (
+                  <button onClick={() => setFilters({ movement: 'all', searchProduct: '', startDate: '', endDate: '' })} className="flex items-center gap-1.5 text-xs text-[var(--fg-muted)] hover:text-[var(--fg)] transition-colors">
+                    <X size={12} /> Réinitialiser
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Table ── */}
+      <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)] overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-[var(--bg-subtle)] border-b border-[var(--border)]">
+              <tr>
+                {['ID', 'Date', 'Type', 'Produit', 'Quantité', 'Note', 'Utilisateur', 'Action'].map(h => (
+                  <th key={h} className="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-[var(--fg-muted)] whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border)]">
+              {loading ? (
+                [...Array(6)].map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    {[...Array(8)].map((__, j) => <td key={j} className="px-5 py-4"><div className="h-3.5 bg-[var(--bg-subtle)] rounded-full w-full" /></td>)}
+                  </tr>
+                ))
+              ) : filtered.length > 0 ? (
+                filtered.map(m => (
+                  <tr key={m.id} className="hover:bg-[var(--bg-card-hover)] transition-colors">
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <span className="font-mono text-[11px] font-bold text-[var(--fg-subtle)]">{String(m.id).substring(0, 8)}</span>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 text-[13px] text-[var(--fg-muted)]">
+                        <Calendar size={13} /> {new Date(m.date).toLocaleDateString('fr-FR')}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+                        m.type === MV.IN ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400' : 'bg-red-500/10 text-red-600 border-red-500/20 dark:text-red-400'
+                      }`}>
+                        {m.type === MV.IN ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}
+                        {m.type === MV.IN ? 'Entrée' : 'Sortie'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <span className="font-medium text-[var(--fg)]">{m.product}</span>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <span className={`font-bold text-[14px] ${m.type === MV.IN ? 'text-emerald-500' : 'text-red-500'}`}>
+                        {m.type === MV.IN ? '+' : '-'}{m.quantity}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap max-w-[200px] truncate">
+                      <span className="text-[13px] text-[var(--fg-subtle)]">{m.note || '—'}</span>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <span className="text-[12px] font-semibold text-[var(--fg-muted)] bg-[var(--bg-subtle)] px-2 py-0.5 rounded-md">{m.user || 'Système'}</span>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <button onClick={() => setDeleteTarget(m)} className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--fg-muted)] hover:bg-red-500/10 hover:text-red-500 transition-colors" title="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={8} className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center gap-2 text-[var(--fg-muted)]">
+                      <ArrowLeftRight size={28} className="text-[var(--border)] mb-2" />
+                      <p className="font-medium text-[15px]">Aucun mouvement trouvé</p>
+                      <p className="text-xs">Modifiez vos filtres ou ajoutez un nouveau mouvement.</p>
+                    </div>
                   </td>
-                  <td className={m.type === MV.IN ? "text-success" : "text-danger"}><strong>{m.quantity}</strong></td>
-                  <td className="movement-note">{m.note || "-"}</td>
-                  <td>{m.user}</td>
-                  <td><button className="btn-icon" onClick={() => setDeleteModal({ isOpen: true, id: m.id })}>🗑️</button></td>
                 </tr>
-              )
-            }) : <tr><td colSpan="9" className="no-data-row"><div className="no-data-message">Aucun mouvement</div></td></tr>}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center justify-between px-5 py-3.5 border-t border-[var(--border)] bg-[var(--bg-subtle)]">
+          <span className="text-xs text-[var(--fg-muted)]">
+            <span className="font-semibold text-[var(--fg)]">{filtered.length}</span> mouvement{filtered.length !== 1 ? 's' : ''}
+            {filtered.length !== movements.length && ` affiché(s) sur ${movements.length}`}
+          </span>
+        </div>
       </div>
 
-      {/* Modals */}
-      <Modal isOpen={mod} onClose={() => { setMod(false); rMv() }} title="➕ Nouveau mouvement" onConfirm={hdlAddMvRemote} confirmText="Ajouter">
-        <FormField label="Produit" id="mvmt-prod" error={fe.productId}>
-          <select value={mf.productId} onChange={hdlProdChange}>
-            <option value="">Sélectionner</option>
-            {prod.map(p => <option key={p.id} value={p.id}>{p.name} ({p.stock}) - {supp.find(s => s.id === p.supplierId)?.name}</option>)}
-          </select>
-        </FormField>
-        <div className="form-row">
-          <FormField label="Type" id="mvmt-type"><select value={mf.type} onChange={e => setMf({ ...mf, type: e.target.value })}><option value={MV.IN}>⬆️ Entrée</option><option value={MV.OUT}>⬇️ Sortie</option></select></FormField>
-          <FormField label="Quantité" id="mvmt-qty" error={fe.quantity}><input type="number" min="1" value={mf.quantity} onChange={e => setMf({ ...mf, quantity: e.target.value })} /></FormField>
+      {/* ── Add Modal ── */}
+      <Modal isOpen={modalOpen} onClose={() => { setModalOpen(false); resetForm() }} title="Nouveau mouvement de stock" onConfirm={handleSave} confirmText="Enregistrer" size="md">
+        <div className="flex flex-col gap-4">
+          <FormField label="Produit" id="mvmt-prod" error={formErrors.productId}>
+            <select value={formData.productId} onChange={handleProductChange} className={`${selectClass} ${formErrors.productId ? 'border-red-500' : ''}`}>
+              <option value="">Sélectionner un produit...</option>
+              {products.map(p => <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock})</option>)}
+            </select>
+          </FormField>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Type de mouvement" id="mvmt-type">
+              <select value={formData.type} onChange={e => setFormData(f => ({ ...f, type: e.target.value }))} className={selectClass}>
+                <option value={MV.IN}>Entrée (Ajout)</option>
+                <option value={MV.OUT}>Sortie (Retrait)</option>
+              </select>
+            </FormField>
+            <FormField label="Quantité" id="mvmt-qty" error={formErrors.quantity}>
+              <input type="number" min="1" value={formData.quantity} onChange={e => setFormData(f => ({ ...f, quantity: e.target.value }))} className={`${inputClass} ${formErrors.quantity ? 'border-red-500 focus:border-red-500' : ''}`} placeholder="ex: 50" />
+            </FormField>
+          </div>
+
+          <FormField label="Date" id="mvmt-date">
+            <input type="date" value={formData.date} onChange={e => setFormData(f => ({ ...f, date: e.target.value }))} className={inputClass} />
+          </FormField>
+
+          <FormField label="Note / Motif" id="mvmt-note">
+            <textarea value={formData.note} onChange={e => setFormData(f => ({ ...f, note: e.target.value }))} className={inputClass} rows={2} placeholder="Justification du mouvement..." />
+          </FormField>
+          
+          {formData.productId && formData.type === MV.OUT && (
+            <div className="p-3 mt-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-medium flex items-center gap-2">
+              <AlertTriangle size={14} /> Attention, le stock actuel est de {products.find(p => String(p.id) === String(formData.productId))?.stock}
+            </div>
+          )}
         </div>
-        <FormField label="Date" id="mvmt-date"><input type="date" value={mf.date} onChange={e => setMf({ ...mf, date: e.target.value })} /></FormField>
-        <FormField label="Note" id="mvmt-note"><textarea value={mf.note} onChange={e => setMf({ ...mf, note: e.target.value })} rows="2" /></FormField>
-        {mf.productId && mf.type === MV.OUT && <div className="stock-warning">⚠️ Stock: {prod.find(p => String(p.id) === String(mf.productId))?.stock}</div>}
       </Modal>
 
-      {deleteModal.isOpen && (
-        <div className="modal-overlay" onClick={() => setDeleteModal({ isOpen: false, id: null })}>
-          <div className="modal-content modal-small" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>⚠️ Confirmation</h3>
-              <button className="modal-close" onClick={() => setDeleteModal({ isOpen: false, id: null })}>×</button>
-            </div>
-            <div className="modal-body">
-              <p>Êtes-vous sûr de vouloir supprimer ce mouvement ?</p>
-              <p className="text-danger">Cette action est irréversible.</p>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setDeleteModal({ isOpen: false, id: null })}>Annuler</button>
-              <button className="btn-danger" onClick={hdlDelMvRemote}>Supprimer</button>
-            </div>
+      {/* ── Delete Modal ── */}
+      <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Supprimer le mouvement" onConfirm={handleDelete} confirmText="Supprimer" confirmVariant="danger" size="sm">
+        <div className="flex flex-col items-center gap-4 py-2 text-center">
+          <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-500/10"><AlertTriangle size={22} className="text-red-500" /></div>
+          <div>
+            <p className="font-semibold text-[var(--fg)] mb-1">Confirmer la suppression ?</p>
+            <p className="text-sm text-[var(--fg-muted)]">Cette action annulera l'effet de ce mouvement sur le stock du produit.</p>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   )
 }
-export default MovementsPage

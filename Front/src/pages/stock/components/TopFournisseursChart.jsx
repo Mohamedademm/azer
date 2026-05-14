@@ -212,7 +212,7 @@ const TopFournisseursChart = ({ data }) => {
 
   const btnStyle = {
     background: '#1e293b',
-    color: '#e2e8f0',
+    color: 'var(--fg)',
     border: '1px solid rgba(148,163,184,.2)',
     padding: '6px 10px',
     borderRadius: '6px',
@@ -230,7 +230,7 @@ const TopFournisseursChart = ({ data }) => {
 
       {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-        <h3 style={{ color: '#f1f5f9' }}>Top fournisseurs</h3>
+        <h3 style={{ color: 'var(--fg)' }}>Top fournisseurs</h3>
 
         {/* BUTTONS */}
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -254,8 +254,8 @@ const TopFournisseursChart = ({ data }) => {
 
       {/* DETAILS */}
       <div style={{ marginTop: '20px' }}>
-        <h4 style={{ color: '#fff' }}>{f.nom}</h4>
-        <p style={{ color: '#94a3b8' }}>
+        <h4 style={{ color: 'var(--fg)' }}>{f.nom}</h4>
+        <p style={{ color: 'var(--fg-muted)' }}>
           CA: {f.total.toLocaleString()} DT
         </p>
       </div>

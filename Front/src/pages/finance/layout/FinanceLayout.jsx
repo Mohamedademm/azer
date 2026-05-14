@@ -1,17 +1,25 @@
-// src/pages/finance/layout/FinanceLayout.jsx
 import { useState, useEffect } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { useModuleAvailability } from '../../../hooks/useModuleAvailability'
-import ModuleDisabledView from '../../../components/ModuleDisabledView'
-import { clearAuth, getUserEmail, getUserRole } from '../../../utils/auth'
-import userService from '../../../services/userService'
-import './FinanceLayout.css'
+import { Outlet, useNavigate } from 'react-router-dom'
+import {
+  BarChart3, FileText, Landmark, Receipt, Settings, WalletCards, Crown,
+} from 'lucide-react'
+import { useModuleAvailability } from '@/hooks/useModuleAvailability'
+import ModuleDisabledView from '@/components/ModuleDisabledView'
+import { clearAuth, getUserEmail, getUserRole } from '@/utils/auth'
+import userService from '@/services/userService'
+import AppSidebar from '@/components/layout/AppSidebar'
+import ThemeToggle from '@/components/ThemeToggle'
+import { cn } from '@/lib/utils'
 
-function FinanceLayout() {
+const ACCENT = '#10b981' // Emerald — Finance
+
+export default function FinanceLayout() {
   const navigate = useNavigate()
   const { blocked, checking } = useModuleAvailability('finance')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [userInfo, setUserInfo] = useState({ firstName: '', lastName: '', email: '', department: '', role: '' })
+  const [collapsed, setCollapsed] = useState(false)
+  const [userInfo, setUserInfo] = useState({
+    firstName: 'Gestionnaire', lastName: 'Finance', email: '', department: 'Finance', role: ''
+  })
 
   useEffect(() => {
     let active = true
@@ -22,8 +30,8 @@ function FinanceLayout() {
         firstName:  p?.firstName  || 'Gestionnaire',
         lastName:   p?.lastName   || 'Finance',
         email:      p?.email      || getUserEmail() || '',
-        department: p?.department || 'Gestion Finance',
-        role:       p?.role       || getUserRole() || 'admin_finance',
+        department: p?.department || 'Finance',
+        role:       p?.role       || getUserRole()  || 'admin_finance',
       })
     }).catch(() => {
       if (!active) return
@@ -32,106 +40,71 @@ function FinanceLayout() {
     return () => { active = false }
   }, [])
 
-  const handleLogout = () => { clearAuth(); navigate('/login') }
-
-  if (checking) return <div className="finance-loading"><div className="spinner" /><p>Chargement...</p></div>
-  if (blocked)  return <ModuleDisabledView accentColor="#ed8936" moduleLabel="Finance" />
+  if (checking) return (
+    <div className="page-loading">
+      <div className="spinner spinner-lg" style={{ borderTopColor: ACCENT }} />
+      <p className="text-sm">Chargement...</p>
+    </div>
+  )
+  if (blocked) return <ModuleDisabledView accentColor={ACCENT} moduleLabel="Finance" />
 
   const isAdmin = userInfo.role === 'admin_principal'
 
+  const navItems = [
+    { to: '/finance/dashboard',     label: 'Dashboard',    Icon: BarChart3   },
+    { to: '/finance/transactions',  label: 'Transactions', Icon: WalletCards },
+    { to: '/finance/accounts',      label: 'Comptes',      Icon: Landmark    },
+    { to: '/finance/depenses',      label: 'Dépenses',     Icon: Receipt     },
+    { to: '/finance/reports',       label: 'Rapports',     Icon: FileText    },
+    { to: '/finance/settings',      label: 'Paramètres',   Icon: Settings    },
+  ]
+
+  const extraActions = isAdmin ? (
+    <button
+      onClick={() => navigate('/admin')}
+      className="flex items-center gap-2 text-[11px] font-semibold text-slate-400 hover:text-white px-3 py-2 rounded-lg hover:bg-white/6 transition-colors w-full"
+    >
+      <Crown size={13} />
+      <span>Panneau Admin</span>
+    </button>
+  ) : null
+
   return (
-    <div className="finance-container">
-      {/* ===== SIDEBAR ===== */}
-      <aside className={`finance-sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
-        <div className="sidebar-header">
-          <div className="logo-container">
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-              <rect width="40" height="40" rx="10" fill="#ed8936"/>
-              <path d="M20 10V30M14 16h9a3 3 0 010 6h-9" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            {!sidebarCollapsed && <div><h1>ERP</h1><p>Gestion Finance</p></div>}
-          </div>
-          <button className="sidebar-toggle" onClick={() => setSidebarCollapsed(c => !c)}>
-            {sidebarCollapsed ? '→' : '←'}
-          </button>
-        </div>
+    <div className="app-shell">
+      <AppSidebar
+        accentColor={ACCENT}
+        title="Azer ERP"
+        subtitle="Gestion Finance"
+        navItems={navItems}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed(c => !c)}
+        userInfo={userInfo}
+        onLogout={() => { clearAuth(); navigate('/login') }}
+        extraActions={extraActions}
+      />
 
-        {!sidebarCollapsed && (
-          <div className="user-profile">
-            <div className="avatar" style={{ background: 'linear-gradient(135deg,#ed8936,#c05621)' }}>
-              {userInfo.firstName?.charAt(0).toUpperCase() || 'F'}
-            </div>
-            <div className="user-info">
-              <div className="user-name">{userInfo.firstName} {userInfo.lastName}</div>
-              <div className="user-email">{userInfo.email}</div>
-              {userInfo.department && <div className="user-department">{userInfo.department}</div>}
-            </div>
+      <main className={cn('main-content', collapsed && 'collapsed')}>
+        <header className="page-header-bar">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-base font-bold text-[var(--fg)] truncate">Gestion Finance</h1>
+            <p className="text-xs text-[var(--fg-muted)] truncate hidden sm:block">
+              Comptes, transactions, dépenses et rapports
+            </p>
           </div>
-        )}
-
-        <nav className="sidebar-menu">
-          {!sidebarCollapsed && (
-            <div className="menu-header">
-              <p>MENU FINANCE</p>
-              {isAdmin && (
-                <button className="router-button" onClick={() => navigate('/admin')}>
-                  👑 Admin
-                </button>
-              )}
-            </div>
-          )}
-          <div className="menu-items">
-            <NavLink to="/finance/dashboard"    className={({ isActive }) => `menu-item${isActive ? ' active' : ''}`}>
-              <span className="menu-icon">📊</span>{!sidebarCollapsed && <span>Dashboard Finance</span>}
-            </NavLink>
-            <NavLink to="/finance/transactions" className={({ isActive }) => `menu-item${isActive ? ' active' : ''}`}>
-              <span className="menu-icon">💰</span>{!sidebarCollapsed && <span>Transactions</span>}
-            </NavLink>
-            <NavLink to="/finance/accounts"     className={({ isActive }) => `menu-item${isActive ? ' active' : ''}`}>
-              <span className="menu-icon">🏦</span>{!sidebarCollapsed && <span>Comptes</span>}
-            </NavLink>
-            <NavLink to="/finance/depenses"     className={({ isActive }) => `menu-item${isActive ? ' active' : ''}`}>
-              <span className="menu-icon">💸</span>{!sidebarCollapsed && <span>Dépenses</span>}
-            </NavLink>
-            <NavLink to="/finance/reports"      className={({ isActive }) => `menu-item${isActive ? ' active' : ''}`}>
-              <span className="menu-icon">📑</span>{!sidebarCollapsed && <span>Rapports</span>}
-            </NavLink>
-            <NavLink to="/finance/settings"     className={({ isActive }) => `menu-item${isActive ? ' active' : ''}`}>
-              <span className="menu-icon">⚙️</span>{!sidebarCollapsed && <span>Paramètres</span>}
-            </NavLink>
-          </div>
-        </nav>
-
-        <div className="sidebar-footer">
-          <button onClick={handleLogout} className="logout-button">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M3 3C2.46957 3 1.96086 3.21071 1.58579 3.58579C1.21071 3.96086 1 4.46957 1 5V15C1 15.5304 1.21071 16.0391 1.58579 16.4142C1.96086 16.7893 2.46957 17 3 17H8V15H3V5H8V3H3Z"/>
-              <path d="M16 5L20 10L16 15L14.59 13.59L17.17 11H8V9H17.17L14.59 6.41L16 5Z"/>
-            </svg>
-            {!sidebarCollapsed && <span>Déconnexion</span>}
-          </button>
-        </div>
-      </aside>
-
-      {/* ===== MAIN — sub-page renders here ===== */}
-      <main className="finance-main">
-        <header className="main-header">
-          <div>
-            <h1 className="page-title">Gestion Finance</h1>
-            <p className="page-subtitle">Bienvenue sur votre espace de gestion</p>
-          </div>
-          <div className="header-actions">
-            <time dateTime={new Date().toISOString()}>
-              {new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          <div className="flex items-center gap-2">
+            <time
+              dateTime={new Date().toISOString()}
+              className="hidden sm:block text-xs text-[var(--fg-muted)] bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-1.5 font-medium"
+            >
+              {new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
             </time>
+            <ThemeToggle />
           </div>
         </header>
-        <section className="tab-content">
+        <div className="page-content">
           <Outlet />
-        </section>
+        </div>
       </main>
     </div>
   )
 }
-
-export default FinanceLayout

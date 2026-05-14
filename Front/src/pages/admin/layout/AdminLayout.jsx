@@ -1,232 +1,104 @@
-// src/pages/admin/layout/AdminLayout.jsx
-import { useEffect, useState } from "react"
-import { Outlet, NavLink, useNavigate } from "react-router-dom"
-import { clearAuth } from "../../../utils/auth"
-import userService from "../../../services/userService"
-import "./AdminLayout.css"
+import { useState, useEffect } from 'react'
+import { Outlet, useNavigate } from 'react-router-dom'
+import {
+  Home, LayoutGrid, Users, UserPlus, Settings,
+} from 'lucide-react'
+import { clearAuth } from '@/utils/auth'
+import userService from '@/services/userService'
+import AppSidebar from '@/components/layout/AppSidebar'
+import ThemeToggle from '@/components/ThemeToggle'
+import { cn } from '@/lib/utils'
 
-function AdminLayout() {
+const navItems = [
+  { to: '/admin/accueil',        label: 'Accueil',         Icon: Home },
+  { to: '/admin/modules',        label: 'Modules',         Icon: LayoutGrid },
+  { to: '/admin/accounts',       label: 'Comptes',         Icon: Users },
+  { to: '/admin/create-account', label: 'Créer un compte', Icon: UserPlus },
+  { to: '/admin/settings',       label: 'Paramètres',      Icon: Settings },
+]
+
+export default function AdminLayout() {
   const navigate = useNavigate()
-
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [userSettings, setUserSettings] = useState({
-    firstName: "Admin",
-    lastName: "Principal",
-    email: "",
-    department: ""
+  const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [userInfo, setUserInfo] = useState({
+    firstName: 'Admin', lastName: 'Principal', email: '', department: 'Direction'
   })
 
   useEffect(() => {
     let active = true
-    ;(async () => {
-      try {
-        const response = await userService.getProfile()
-        const profile = response?.data || response
-        if (!active) return
-        setUserSettings(prev => ({
-          ...prev,
-          firstName: profile?.firstName || "Admin",
-          lastName: profile?.lastName || "Principal",
-          email: profile?.email || "",
-          department: profile?.department || "Direction"
-        }))
-      } catch {
-        // silently ignore profile load errors
-      }
-    })()
+    userService.getProfile().then(res => {
+      if (!active) return
+      const p = res?.data || res
+      setUserInfo({
+        firstName: p?.firstName || 'Admin',
+        lastName:  p?.lastName  || 'Principal',
+        email:     p?.email     || '',
+        department: p?.department || 'Direction',
+      })
+    }).catch(() => {})
     return () => { active = false }
   }, [])
 
-  const handleLogout = () => {
-    clearAuth()
-    navigate("/login")
-  }
+  const handleLogout = () => { clearAuth(); navigate('/login') }
 
   return (
-    <div className="container">
+    <div className="app-shell">
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-[99] bg-black/50 backdrop-blur-sm md:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <div 
-        className="sidebar" 
-        style={{ width: sidebarCollapsed ? "80px" : "280px" }}
-      >
-        <div className="sidebar-header">
-          {!sidebarCollapsed && (
-            <NavLink to="/admin/accueil" className="logo-container">
-              <div className="logo-container">
-                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                  <rect width="40" height="40" rx="10" fill="#667eea" />
-                  <path d="M12 20L18 26L28 14" stroke="white" strokeWidth="3" strokeLinecap="round" />
-                </svg>
-                <div>
-                  <h1 className="logo-title">ERP</h1>
-                  <p className="logo-subtitle">Administration</p>
-                </div>
-              </div>
-            </NavLink>
-          )}
-          {sidebarCollapsed && (
-            <NavLink to="/admin/accueil" className="logo-collapsed">
-              <div className="logo-collapsed">
-                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                  <rect width="40" height="40" rx="10" fill="#667eea" />
-                  <path d="M12 20L18 26L28 14" stroke="white" strokeWidth="3" strokeLinecap="round" />
-                </svg>
-              </div>
-            </NavLink>
-          )}
+      <AppSidebar
+        accentColor="#6366f1"
+        title="Azer ERP"
+        subtitle="Administration"
+        navItems={navItems}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed(c => !c)}
+        userInfo={userInfo}
+        onLogout={handleLogout}
+      />
+
+      {/* Main Content */}
+      <main className={cn('main-content', collapsed && 'collapsed')}>
+        {/* Sticky top header */}
+        <header className="page-header-bar">
+          {/* Mobile hamburger */}
           <button
-            onClick={() => setSidebarCollapsed(c => !c)}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: "4px",
-              color: "#a0aec0",
-              fontSize: "1.2rem",
-              marginLeft: "auto"
-            }}
+            className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--fg-muted)] hover:text-[var(--fg)]"
+            onClick={() => setMobileOpen(o => !o)}
           >
-            {sidebarCollapsed ? "›" : "‹"}
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M2 4h12M2 8h12M2 12h12" strokeLinecap="round" />
+            </svg>
           </button>
-        </div>
 
-        {!sidebarCollapsed && (
-          <div className="profile-section">
-            <div className="avatar">
-              {userSettings.firstName?.charAt(0).toUpperCase() || "A"}
-            </div>
-            <div className="user-info">
-              <div className="user-name">
-                {userSettings.firstName} {userSettings.lastName}
-              </div>
-              <div className="user-email">{userSettings.email}</div>
-              {userSettings.department && (
-                <div className="user-department">{userSettings.department}</div>
-              )}
-            </div>
+          <div className="flex-1" />
+
+          {/* Header right */}
+          <div className="flex items-center gap-2">
+            <time
+              dateTime={new Date().toISOString()}
+              className="hidden sm:block text-xs text-[var(--fg-muted)] bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-1.5 font-medium"
+            >
+              {new Date().toLocaleDateString('fr-FR', {
+                weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+              })}
+            </time>
+            <ThemeToggle />
           </div>
-        )}
+        </header>
 
-        {sidebarCollapsed && (
-          <div className="avatar-collapsed">
-            {userSettings.firstName?.charAt(0).toUpperCase() || "A"}
-          </div>
-        )}
-
-        <div className="nav-container">
-          <p className={!sidebarCollapsed ? "nav-title" : "nav-title-collapsed"}>
-            {!sidebarCollapsed ? "MENU" : "M"}
-          </p>
-
-          <NavLink
-            to="/admin/accueil"
-            style={({ isActive }) => ({
-              background: isActive ? "#667eea" : "transparent",
-              color: isActive ? "white" : "#4a5568",
-              justifyContent: sidebarCollapsed ? "center" : "flex-start",
-              padding: sidebarCollapsed ? "12px" : "12px 20px",
-              marginBottom: "8px",
-              gap: "12px"
-            })}
-            className="nav-button"
-          >
-            <span style={{ fontSize: "1.2rem" }}>{"\uD83C\uDFE0"}</span>
-            {!sidebarCollapsed && "Page d'accueil"}
-          </NavLink>
-
-          <NavLink
-            to="/admin/modules"
-            style={({ isActive }) => ({
-              background: isActive ? "#805ad5" : "#9f7aea",
-              color: "white",
-              justifyContent: sidebarCollapsed ? "center" : "flex-start",
-              padding: sidebarCollapsed ? "12px" : "12px 20px",
-              marginBottom: "10px",
-              gap: "12px"
-            })}
-            className="nav-button"
-          >
-            <span style={{ fontSize: "1.2rem" }}>{"\uD83D\uDCCA"}</span>
-            {!sidebarCollapsed && (
-              <span style={{ flex: 1, textAlign: "left" }}>Gestion des modules</span>
-            )}
-          </NavLink>
-
-          <NavLink
-            to="/admin/accounts"
-            style={({ isActive }) => ({
-              background: isActive ? "#2b6cb0" : "#4299e1",
-              color: "white",
-              justifyContent: sidebarCollapsed ? "center" : "flex-start",
-              padding: sidebarCollapsed ? "12px" : "12px 20px",
-              marginBottom: "10px",
-              gap: "12px"
-            })}
-            className="nav-button"
-          >
-            <span style={{ fontSize: "1.2rem" }}>{"\uD83D\uDC65"}</span>
-            {!sidebarCollapsed && (
-              <span style={{ flex: 1, textAlign: "left" }}>Consulter les comptes</span>
-            )}
-          </NavLink>
-
-          <NavLink
-            to="/admin/create-account"
-            style={({ isActive }) => ({
-              background: isActive ? "#38a169" : "#48bb78",
-              color: "white",
-              justifyContent: sidebarCollapsed ? "center" : "flex-start",
-              padding: sidebarCollapsed ? "12px" : "12px 20px",
-              marginBottom: "10px",
-              gap: "12px"
-            })}
-            className="nav-button"
-          >
-            <span style={{ fontSize: "1.2rem" }}>{"\u2795"}</span>
-            {!sidebarCollapsed && "Créer un compte"}
-          </NavLink>
-
-          <NavLink
-            to="/admin/settings"
-            style={({ isActive }) => ({
-              background: isActive ? "#2d3748" : "#4a5568",
-              color: "white",
-              justifyContent: sidebarCollapsed ? "center" : "flex-start",
-              padding: sidebarCollapsed ? "12px" : "12px 20px",
-              marginBottom: "8px",
-              gap: "12px"
-            })}
-            className="nav-button"
-          >
-            <span style={{ fontSize: "1.2rem" }}>{"\u2699\uFE0F"}</span>
-            {!sidebarCollapsed && "Paramètres"}
-          </NavLink>
+        {/* Page outlet */}
+        <div className="page-content">
+          <Outlet />
         </div>
-
-        <div className="logout-section">
-          <button
-            onClick={handleLogout}
-            className="logout-button"
-            style={{
-              justifyContent: sidebarCollapsed ? "center" : "flex-start",
-              padding: sidebarCollapsed ? "12px" : "12px 20px"
-            }}
-          >
-            <span style={{ fontSize: "1.2rem" }}>{"\uD83D\uDEAA"}</span>
-            {!sidebarCollapsed && "Déconnexion"}
-          </button>
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div 
-        className="main-content" 
-        style={{ marginLeft: sidebarCollapsed ? "80px" : "280px" }}
-      >
-        <Outlet />
-      </div>
+      </main>
     </div>
   )
 }
-
-export default AdminLayout

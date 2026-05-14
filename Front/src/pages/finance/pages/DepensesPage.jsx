@@ -1,245 +1,63 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
-import './depenses.css'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ArrowLeftRight, Search, Plus, Trash2, Calendar, Filter, ArrowDownRight, Download, SlidersHorizontal, X, Pencil, AlertTriangle, CheckCircle, Target } from 'lucide-react'
 import { depensesService } from '../../../services/depensesService'
 import { accountService } from '../../../services/accountService'
-import {
-  extractApiErrorMessage,
-  mapAccountToUi,
-  pickList,
-} from '../../../utils/frontendApiAdapters'
+import { extractApiErrorMessage, mapAccountToUi, pickList } from '../../../utils/frontendApiAdapters'
+import Modal from '../../../components/common/Modal'
+import FormField from '../../../components/common/FormField'
 
-const COLORS = {
-  success: '#48bb78',
-  warning: '#ed8936',
-  danger: '#f56565',
-  muted: '#718096',
-  successBg: '#c6f6d5',
-  warningBg: '#feebc8',
-  dangerBg: '#fed7d7',
-  mutedBg: '#edf2f7',
-  defaultBg: '#e2e8f0',
-}
-
-const STATUS_CONFIG = {
-  payé: { color: COLORS.success, bg: COLORS.successBg },
-  'en attente': { color: COLORS.warning, bg: COLORS.warningBg },
-  'en retard': { color: COLORS.danger, bg: COLORS.dangerBg },
-}
-
-const getStatusStyle = (status) =>
-  STATUS_CONFIG[status] || { color: COLORS.muted, bg: COLORS.defaultBg }
-
-const StatusBadge = ({ status }) => {
-  const style = getStatusStyle(status)
-  return (
-    <span className="status-badge" style={{ background: style.bg, color: style.color }}>
-      {status}
-    </span>
-  )
-}
-
-const FORMAT_OPTIONS = {
-  currency: { style: 'currency', currency: 'EUR' },
-  date: { day: '2-digit', month: '2-digit', year: 'numeric' },
-}
-
+const inputClass = 'form-input'
+const selectClass = 'form-input cursor-pointer'
 const today = new Date().toISOString().split('T')[0]
 
-const EMPTY_DEPENSE = {
-  description: '',
-  amount: '',
-  fournisseur: '',
-  category: 'Achat',
-  date: today,
-  dateEcheance: '',
-  status: 'en attente',
-  notes: '',
-}
+const EMPTY_DEPENSE = { description: '', amount: '', fournisseur: '', category: 'Achat', date: today, dateEcheance: '', status: 'en attente', notes: '', account: '' }
+const DEPENSE_CATEGORIES = ['Achat', 'Loyer', 'Salaires', 'Charges sociales', 'Assurances', 'Fournitures', 'Transport', 'Marketing', 'Services extérieurs', 'Impôts', 'Autre']
 
-const DEPENSE_CATEGORIES = [
-  'Achat', 'Loyer', 'Salaires', 'Charges sociales', 'Assurances',
-  'Fournitures', 'Transport', 'Marketing', 'Services extérieurs', 'Impôts', 'Autre',
-]
-
-const NoResults = ({ onReset }) => (
-  <div className="no-results">
-    <p>Aucune dépense trouvée</p>
-    <button className="btn-reset" onClick={onReset}>Réinitialiser</button>
-  </div>
-)
-
-const Pagination = ({ total, pagination, setPagination }) => {
-  const totalPages = Math.ceil(total / pagination.itemsPerPage)
-  const start = total > 0 ? (pagination.currentPage - 1) * pagination.itemsPerPage + 1 : 0
-  const end = Math.min(pagination.currentPage * pagination.itemsPerPage, total)
-  return (
-    <div className="pagination">
-      <span className="pagination-info">
-        {total > 0 ? `${start}-${end} sur ${total}` : '0 élément'}
-      </span>
-      <div className="pagination-controls">
-        <button className="pagination-btn"
-          onClick={() => setPagination(p => ({ ...p, currentPage: Math.max(1, p.currentPage - 1) }))}
-          disabled={pagination.currentPage === 1}>←</button>
-        {[...Array(totalPages)].map((_, i) => {
-          const page = i + 1
-          const show = page === 1 || page === totalPages ||
-            (page >= pagination.currentPage - 2 && page <= pagination.currentPage + 2)
-          if (show) return (
-            <button key={page}
-              className={`pagination-btn ${pagination.currentPage === page ? 'active' : ''}`}
-              onClick={() => setPagination(p => ({ ...p, currentPage: page }))}>
-              {page}
-            </button>
-          )
-          if (page === pagination.currentPage - 3 || page === pagination.currentPage + 3)
-            return <span key={page} className="pagination-dots">...</span>
-          return null
-        })}
-        <button className="pagination-btn"
-          onClick={() => setPagination(p => ({ ...p, currentPage: Math.min(totalPages, p.currentPage + 1) }))}
-          disabled={pagination.currentPage === totalPages || total === 0}>→</button>
-      </div>
-      <select className="pagination-limit" value={pagination.itemsPerPage}
-        onChange={e => setPagination({ currentPage: 1, itemsPerPage: Number(e.target.value) })}>
-        {[10, 25, 50, 100].map(v => <option key={v} value={v}>{v} par page</option>)}
-      </select>
-    </div>
-  )
-}
-
-// ✅ Fix Bug 1 : accounts passé en prop depuis le parent, plus de loadData/notify/setLoading internes
-const DepenseForm = ({ formData, setFormData, accounts }) => {
-  const fd = formData
-  const set = (field, value) => setFormData({ ...fd, [field]: value })
-
-  return (
-    <>
-      <div className="form-group">
-        <label>Description *</label>
-        <input type="text" value={fd.description}
-          onChange={e => set('description', e.target.value)}
-          required placeholder="Ex: Achat fournitures bureau" />
-      </div>
-
-      <div className="form-row">
-        <div className="form-group">
-          <label>Montant *</label>
-          <input type="number" value={fd.amount}
-            onChange={e => set('amount', e.target.value)}
-            step="0.01" required placeholder="0.00" />
-        </div>
-        <div className="form-group">
-          <label>Fournisseur</label>
-          <input type="text" value={fd.fournisseur}
-            onChange={e => set('fournisseur', e.target.value)}
-            placeholder="Nom du fournisseur" />
-        </div>
-      </div>
-
-      <div className="form-row">
-        <div className="form-group">
-          <label>Catégorie *</label>
-          <select value={fd.category} onChange={e => set('category', e.target.value)}>
-            {DEPENSE_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-          </select>
-        </div>
-        <div className="form-group">
-          <label>Statut *</label>
-          <select value={fd.status} onChange={e => set('status', e.target.value)}>
-            <option value="payé">Payé</option>
-            <option value="en attente">En attente</option>
-            <option value="en retard">En retard</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="form-row">
-        <div className="form-group">
-          <label>Compte de paiement *</label>
-          <select className="filter-select" value={fd.account || ''}
-            onChange={e => set('account', e.target.value)} required>
-            <option value="" disabled>-- Sélectionnez un compte --</option>
-            {accounts.map(acc => (
-              <option key={acc.id} value={acc.id}>{acc.name}</option>
-            ))}
-          </select>
-          <br /><br />
-          <label>Date de la dépense *</label>
-          <input type="date"
-            value={fd.date ? fd.date.split('T')[0] : ''}
-            onChange={e => set('date', e.target.value)} required />
-        </div>
-        <div className="form-group">
-          <label>Date d'échéance</label>
-          <input type="date"
-            value={fd.dateEcheance ? fd.dateEcheance.split('T')[0] : ''}
-            onChange={e => set('dateEcheance', e.target.value)} />
-        </div>
-      </div>
-
-      <div className="form-group">
-        <label>Notes / Référence</label>
-        <textarea value={fd.notes} onChange={e => set('notes', e.target.value)}
-          rows="3" placeholder="Informations complémentaires, numéro de facture..." />
-      </div>
-    </>
-  )
-}
-
-function DepensesPage({ showNotif }) {
-  const navigate = useNavigate()
-  const notify = (msg, type) => {
-    if (typeof showNotif === 'function') showNotif(msg, type)
-    else if (type === 'error') window.alert(msg)
-    else console.log(msg)
-  }
-
+export default function DepensesPage({ showNotif }) {
   const [depenses, setDepenses] = useState([])
-  const [filters, setFilters] = useState({
-    search: '', status: 'tous', category: 'tous',
-    dateRange: { start: '', end: '' }, montantMin: '', montantMax: '',
-  })
-  const [pagination, setPagination] = useState({ currentPage: 1, itemsPerPage: 10 })
-  const [sort, setSort] = useState({ key: 'date', direction: 'desc' })
-  const [modal, setModal] = useState({ isOpen: false, mode: 'add', item: null })
-  const [formData, setFormData] = useState({ ...EMPTY_DEPENSE })
-  const [loading, setLoading] = useState(true)
   const [accounts, setAccounts] = useState([])
   const [limitSettings, setLimitSettings] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  const formatCurrency = (amount) => (amount || 0).toLocaleString('fr-FR', FORMAT_OPTIONS.currency)
-  const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', FORMAT_OPTIONS.date) : ''
+  // UI States
+  const [showFilters, setShowFilters] = useState(false)
+  const [modal, setModal] = useState({ isOpen: false, mode: 'add', item: null })
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [toastMsg, setToastMsg] = useState({ type: '', text: '' })
+
+  const [filters, setFilters] = useState({ search: '', status: 'tous', category: 'tous', dateRange: { start: '', end: '' }, montantMin: '', montantMax: '' })
+  const [pagination, setPagination] = useState({ currentPage: 1, itemsPerPage: 10 })
+  const [sort, setSort] = useState({ key: 'date', direction: 'desc' })
+  const [formData, setFormData] = useState({ ...EMPTY_DEPENSE })
+  const [formErrors, setFormErrors] = useState({})
+
+  const notify = (type, text) => {
+    setToastMsg({ type, text })
+    setTimeout(() => setToastMsg({ type: '', text: '' }), 3500)
+    if (showNotif) showNotif(text, type)
+  }
 
   const loadData = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
       const [depRes, accRes, limitRes] = await Promise.all([
         depensesService.getAll(),
         accountService.getAll({ limit: 200 }),
         depensesService.getSettings().catch(() => null)
       ])
-      const formatted = (depRes.data || []).map(d => ({
-        ...d, id: d._id, amount: -Math.abs(d.amount)
-      }))
+      const formatted = (depRes.data || []).map(d => ({ ...d, id: d._id, amount: -Math.abs(d.amount) }))
       setDepenses(formatted)
       setAccounts(pickList(accRes, ['data']).map(mapAccountToUi))
       setLimitSettings(limitRes?.data || null)
-    } catch (error) {
-      notify('Impossible de charger les données', 'error')
-    } finally {
-      setLoading(false)
-    }
+    } catch (error) { notify('error', 'Impossible de charger les données') }
+    finally { setLoading(false) }
   }
 
   useEffect(() => { loadData() }, [])
 
   const resetFilters = () => {
-    setFilters({
-      search: '', status: 'tous', category: 'tous',
-      dateRange: { start: '', end: '' }, montantMin: '', montantMax: '',
-    })
+    setFilters({ search: '', status: 'tous', category: 'tous', dateRange: { start: '', end: '' }, montantMin: '', montantMax: '' })
     setPagination(p => ({ ...p, currentPage: 1 }))
   }
 
@@ -247,18 +65,27 @@ function DepensesPage({ showNotif }) {
     return depenses.filter(item => {
       if (filters.search) {
         const s = filters.search.toLowerCase()
-        if (![item.description, item.id, item.fournisseur, item.category]
-          .some(f => f?.toLowerCase().includes(s))) return false
+        if (![item.description, item.id, item.fournisseur, item.category].some(f => f?.toLowerCase().includes(s))) return false
       }
       if (filters.status !== 'tous' && item.status !== filters.status) return false
       if (filters.category !== 'tous' && item.category !== filters.category) return false
       if (filters.dateRange.start && item.date && item.date < filters.dateRange.start) return false
       if (filters.dateRange.end && item.date && item.date > filters.dateRange.end) return false
-      if (filters.montantMin && (Math.abs(item.amount) || 0) < parseFloat(filters.montantMin)) return false
-      if (filters.montantMax && (Math.abs(item.amount) || 0) > parseFloat(filters.montantMax)) return false
+      if (filters.montantMin && Math.abs(item.amount || 0) < parseFloat(filters.montantMin)) return false
+      if (filters.montantMax && Math.abs(item.amount || 0) > parseFloat(filters.montantMax)) return false
       return true
     })
   }, [depenses, filters])
+
+  const sortedData = useMemo(() => [...filteredData].sort((a, b) => {
+    let valA = a[sort.key], valB = b[sort.key]
+    if (['date', 'dateEcheance', 'createdAt'].includes(sort.key)) { valA = new Date(valA || 0); valB = new Date(valB || 0) }
+    if (['amount'].includes(sort.key)) { valA = Math.abs(Number(valA) || 0); valB = Math.abs(Number(valB) || 0) }
+    return valA < valB ? (sort.direction === 'asc' ? -1 : 1) : valA > valB ? (sort.direction === 'asc' ? 1 : -1) : 0
+  }), [filteredData, sort])
+
+  const paginatedData = sortedData.slice((pagination.currentPage - 1) * pagination.itemsPerPage, pagination.currentPage * pagination.itemsPerPage)
+  const totalPages = Math.ceil(sortedData.length / pagination.itemsPerPage)
 
   const stats = useMemo(() => {
     const paye = filteredData.filter(d => d.status === 'payé').length
@@ -276,268 +103,345 @@ function DepensesPage({ showNotif }) {
     return { max, used, percent }
   }, [limitSettings])
 
-  const sortedData = useMemo(() => {
-    return [...filteredData].sort((a, b) => {
-      let valA = a[sort.key]
-      let valB = b[sort.key]
-      if (['date', 'dateEcheance', 'createdAt'].includes(sort.key)) {
-        valA = new Date(valA || 0); valB = new Date(valB || 0)
-      }
-      if (['amount'].includes(sort.key)) {
-        valA = Math.abs(Number(valA)) || 0; valB = Math.abs(Number(valB)) || 0
-      }
-      return valA < valB ? (sort.direction === 'asc' ? -1 : 1)
-        : valA > valB ? (sort.direction === 'asc' ? 1 : -1) : 0
-    })
-  }, [filteredData, sort])
-
-  const paginatedData = sortedData.slice(
-    (pagination.currentPage - 1) * pagination.itemsPerPage,
-    pagination.currentPage * pagination.itemsPerPage
-  )
-
   const openModal = (mode, item = null) => {
-    if (item && mode === 'edit') {
-      setFormData({
-        ...item,
-        amount: Math.abs(item.amount || 0).toString(),
-        fournisseur: item.fournisseur || '',
-        dateEcheance: item.dateEcheance || '',
-      })
-    } else {
-      setFormData({ ...EMPTY_DEPENSE })
-    }
+    if (item && mode === 'edit') setFormData({ ...item, amount: Math.abs(item.amount || 0).toString(), fournisseur: item.fournisseur || '', dateEcheance: item.dateEcheance ? item.dateEcheance.split('T')[0] : '', date: item.date ? item.date.split('T')[0] : '' })
+    else setFormData({ ...EMPTY_DEPENSE })
     setModal({ isOpen: true, mode, item })
+    setFormErrors({})
   }
 
   const closeModal = () => {
     setModal({ isOpen: false, mode: 'add', item: null })
     setFormData({ ...EMPTY_DEPENSE })
+    setFormErrors({})
   }
 
-  const assertDepenseLimit = (amount, previousAmount = 0) => {
-    if (!limitSettings?.enabled || !Number(limitSettings.maxMonthlyAmount)) return
-    const projected = (Number(limitSettings.currentMonthTotal) || 0) - Math.abs(previousAmount || 0) + Math.abs(amount || 0)
-    const max = Number(limitSettings.maxMonthlyAmount) || 0
-    if (projected > max) {
-      throw new Error(`Plafond depenses depasse: ${projected.toFixed(2)} / ${max.toFixed(2)}`)
-    }
+  const validate = () => {
+    const e = {}
+    if (!formData.description.trim()) e.description = 'Description requise'
+    if (!formData.amount || parseFloat(formData.amount) <= 0) e.amount = 'Montant invalide (> 0)'
+    if (!formData.account && modal.mode === 'add') e.account = 'Compte de paiement requis'
+    if (!formData.date) e.date = 'Date requise'
+    return e
   }
 
-  const handleAdd = async () => {
+  const handleSave = async () => {
+    const e = validate()
+    if (Object.keys(e).length) return setFormErrors(e)
     try {
       const amount = Math.abs(parseFloat(formData.amount) || 0)
-      assertDepenseLimit(amount)
-      const selectedAccount = accounts.find(a => String(a.id) === String(formData.account))
-      if (!selectedAccount) throw new Error("Veuillez choisir un compte")
-      const soldeDispo = Math.abs(selectedAccount.solde || 0)
-      if (soldeDispo < amount) {
-        notify(`Opération bloquée: Solde insuffisant ! (Reste: ${soldeDispo.toFixed(2)}€, Besoin: ${amount.toFixed(2)}€)`, 'error')
-        return
+      if (limitSettings?.enabled && Number(limitSettings.maxMonthlyAmount)) {
+        const previousAmount = modal.mode === 'edit' ? Math.abs(modal.item.amount || 0) : 0
+        const projected = (Number(limitSettings.currentMonthTotal) || 0) - previousAmount + amount
+        if (projected > Number(limitSettings.maxMonthlyAmount)) return notify('error', `Plafond dépassé (${projected.toFixed(2)} / ${limitSettings.maxMonthlyAmount} DT)`)
       }
-      await depensesService.create({ ...formData, amount })
-      await loadData()
-      closeModal()
-      notify('Dépense enregistrée et solde mis à jour')
-    } catch (error) {
-      notify(error.message || "Erreur de traitement", 'error')
-    }
-  }
 
-  const handleUpdate = async () => {
-    try {
-      const targetId = modal.item?.id
-      const amount = Math.abs(parseFloat(formData.amount) || 0)
-      assertDepenseLimit(amount, Math.abs(modal.item?.amount || 0))
-      await depensesService.update(targetId, { ...formData, amount })
+      if (modal.mode === 'add') {
+        const selectedAccount = accounts.find(a => String(a.id) === String(formData.account))
+        if (!selectedAccount) return notify('error', 'Compte de paiement introuvable')
+        if (Math.abs(selectedAccount.solde || 0) < amount) return notify('error', `Solde insuffisant (Restant: ${Math.abs(selectedAccount.solde).toFixed(2)} DT)`)
+        await depensesService.create({ ...formData, amount })
+        notify('success', 'Dépense enregistrée')
+      } else {
+        await depensesService.update(modal.item.id, { ...formData, amount })
+        notify('success', 'Dépense modifiée')
+      }
       await loadData()
       closeModal()
-      notify('Dépense modifiée avec succès')
-    } catch (error) {
-      notify(error.response?.data?.message || 'Erreur lors de la modification', 'error')
-    }
+    } catch (err) { notify('error', extractApiErrorMessage(err, "Erreur d'enregistrement")) }
   }
 
   const handleDelete = async () => {
+    if (!deleteTarget) return
     try {
-      await depensesService.delete(modal.item?.id)
+      await depensesService.delete(deleteTarget.id)
       await loadData()
-      closeModal()
-      notify('Dépense supprimée')
-    } catch (error) {
-      notify(error.response?.data?.message || 'Erreur lors de la suppression', 'error')
-    }
+      notify('success', 'Dépense supprimée')
+      setDeleteTarget(null)
+    } catch (err) { notify('error', extractApiErrorMessage(err, 'Erreur de suppression')) }
   }
 
   const handleExport = async () => {
     try {
       await depensesService.exportToCSV()
-      notify('Export CSV effectué')
-    } catch (error) {
-      notify("Erreur lors de l'export", 'error')
-    }
+      notify('success', 'Export CSV réussi')
+    } catch (error) { notify('error', "Erreur lors de l'export") }
   }
 
-  const toggleSort = (key) => setSort(s => ({ key, direction: s.key === key && s.direction === 'asc' ? 'desc' : 'asc' }))
-  const sortIcon = (key) => sort.key === key ? (sort.direction === 'asc' ? ' ↑' : ' ↓') : ''
+  const setField = (k, v) => {
+    setFormData(f => ({ ...f, [k]: v }))
+    setFormErrors(e => { const n = { ...e }; delete n[k]; return n })
+  }
 
-  if (loading) return (
-    <div className="finance-loading">
-      <div className="spinner"></div>
-      <p>Chargement des dépenses...</p>
-    </div>
-  )
+  const formatCurrency = (amount) => (amount || 0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' }).replace('TND', 'DT')
 
   return (
-    <div className="depenses-content">
-      <div className="depenses-stats">
-        <div className="stat-card">
-          <span className="stat-label">Total dépenses</span>
-          <span className="stat-value">{formatCurrency(stats.totalDepenses)}</span>
+    <div className="flex flex-col gap-6">
+      {/* ── Toast ── */}
+      <AnimatePresence>
+        {toastMsg.text && (
+          <motion.div initial={{ opacity: 0, y: -16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10, scale: 0.97 }}
+            className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-[var(--shadow-lg)] text-sm font-semibold border ${toastMsg.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 border-red-500/25 text-red-600 dark:text-red-400'}`}>
+            {toastMsg.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
+            {toastMsg.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-rose-500/12 text-rose-500">
+            <ArrowDownRight size={20} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-[var(--fg)]">Dépenses & Charges</h1>
+            <p className="text-xs text-[var(--fg-muted)]">Suivez et gérez vos décaissements</p>
+          </div>
         </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowFilters(v => !v)} className={`flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium border transition-all ${showFilters ? 'bg-rose-500/12 border-rose-500/25 text-rose-600 dark:text-rose-400' : 'border-[var(--border)] bg-[var(--bg-card)] text-[var(--fg-muted)] hover:bg-[var(--bg-subtle)]'}`}>
+            <SlidersHorizontal size={14} /> Filtres
+          </button>
+          <button onClick={handleExport} className="flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium border border-[var(--border)] bg-[var(--bg-card)] text-[var(--fg)] hover:bg-[var(--bg-subtle)] transition-all">
+            <Download size={14} /> Exporter
+          </button>
+          <button onClick={() => openModal('add')} className="flex items-center gap-2 h-9 px-5 rounded-lg text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 shadow-sm shadow-rose-500/25 transition-all hover:-translate-y-px">
+            <Plus size={16} /> Nouvelle dépense
+          </button>
+        </div>
+      </div>
+
+      {/* ── Stats ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4">
+        {[
+          { label: 'Total Dépenses', value: formatCurrency(stats.totalDepenses), color: '#ec4899', bg: 'rgba(236,72,153,0.1)' },
+          { label: 'Payé', value: stats.totalPaye, color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+          { label: 'En attente', value: stats.totalAttente, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+          { label: 'En retard', value: stats.totalRetard, color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+        ].map((s, i) => (
+          <div key={i} className="flex flex-col p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--shadow-sm)]">
+            <span className="text-[11px] font-bold text-[var(--fg-subtle)] uppercase tracking-wider mb-1">{s.label}</span>
+            <span className="text-xl font-bold text-[var(--fg)]">{s.value}</span>
+            <div className="mt-2 h-1 w-8 rounded-full" style={{ backgroundColor: s.color }} />
+          </div>
+        ))}
         {depenseLimit && (
-          <div className={`stat-card ${depenseLimit.percent >= 100 ? 'danger' : depenseLimit.percent >= Number(limitSettings.warningThresholdPercent || 80) ? 'warning' : 'success'}`}>
-            <span className="stat-label">Plafond mensuel</span>
-            <span className="stat-value">{depenseLimit.percent.toFixed(1)}%</span>
-            <span className="stat-detail">{formatCurrency(depenseLimit.used)} / {formatCurrency(depenseLimit.max)}</span>
+          <div className="flex flex-col p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--shadow-sm)] relative overflow-hidden">
+            <span className="text-[11px] font-bold text-[var(--fg-subtle)] uppercase tracking-wider mb-1">Plafond mensuel</span>
+            <span className={`text-xl font-bold ${depenseLimit.percent >= 100 ? 'text-red-500' : depenseLimit.percent >= Number(limitSettings.warningThresholdPercent || 80) ? 'text-amber-500' : 'text-emerald-500'}`}>
+              {depenseLimit.percent.toFixed(1)}%
+            </span>
+            <div className="mt-2 h-1.5 w-full bg-[var(--bg-subtle)] rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${depenseLimit.percent >= 100 ? 'bg-red-500' : depenseLimit.percent >= Number(limitSettings.warningThresholdPercent || 80) ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(depenseLimit.percent, 100)}%` }} />
+            </div>
+            <Target size={40} className="absolute -right-3 -bottom-3 text-[var(--border)] opacity-50" />
           </div>
         )}
-        <div className="stat-card success">
-          <span className="stat-label">Payé</span>
-          <span className="stat-value">{stats.totalPaye}</span>
-        </div>
-        <div className="stat-card warning">
-          <span className="stat-label">En attente</span>
-          <span className="stat-value">{stats.totalAttente}</span>
-        </div>
-        <div className="stat-card danger">
-          <span className="stat-label">En retard</span>
-          <span className="stat-value">{stats.totalRetard}</span>
-        </div>
       </div>
 
-      <div className="depenses-actions">
-        <button className="btn-primary" onClick={() => openModal('add')}>+ Nouvelle dépense</button>
-        <button className="btn-export" onClick={handleExport}>📥 Exporter CSV</button>
-      </div>
+      {/* ── Filters ── */}
+      <AnimatePresence>
+        {showFilters && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-2">
+              <div className="flex flex-col gap-1.5 xl:col-span-2">
+                <label className="text-[12px] font-semibold text-[var(--fg-muted)]">Rechercher</label>
+                <div className="relative">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] pointer-events-none" />
+                  <input type="text" value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))} className="form-input pl-8 h-9" placeholder="Description, fournisseur..." />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-semibold text-[var(--fg-muted)]">Statut</label>
+                <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} className={`${selectClass} h-9`}>
+                  <option value="tous">Tous statuts</option><option value="payé">Payé</option><option value="en attente">En attente</option><option value="en retard">En retard</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-semibold text-[var(--fg-muted)]">Catégorie</label>
+                <select value={filters.category} onChange={e => setFilters(f => ({ ...f, category: e.target.value }))} className={`${selectClass} h-9`}>
+                  <option value="tous">Toutes catégories</option>
+                  {DEPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-semibold text-[var(--fg-muted)]">Du</label>
+                <input type="date" value={filters.dateRange.start} onChange={e => setFilters(f => ({ ...f, dateRange: { ...f.dateRange, start: e.target.value } }))} className="form-input h-9" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-semibold text-[var(--fg-muted)]">Au</label>
+                <input type="date" value={filters.dateRange.end} onChange={e => setFilters(f => ({ ...f, dateRange: { ...f.dateRange, end: e.target.value } }))} className="form-input h-9" />
+              </div>
+              <div className="col-span-full pt-2 mt-2 border-t border-[var(--border)] flex items-center justify-end">
+                <button onClick={resetFilters} className="flex items-center gap-1.5 text-xs text-[var(--fg-muted)] hover:text-[var(--fg)] transition-colors">
+                  <X size={12} /> Réinitialiser les filtres
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div className="filters-container">
-        <div className="search-box">
-          <span className="search-icon">🔍</span>
-          <input type="text" placeholder="Rechercher par description, fournisseur..."
-            value={filters.search}
-            onChange={e => setFilters({ ...filters, search: e.target.value })}
-            className="search-input" />
-          {filters.search && (
-            <button className="clear-search" onClick={() => setFilters({ ...filters, search: '' })}>×</button>
-          )}
-        </div>
-        <div className="filter-group">
-          <select className="filter-select" value={filters.status}
-            onChange={e => setFilters({ ...filters, status: e.target.value })}>
-            <option value="tous">Tous statuts</option>
-            <option value="payé">Payé</option>
-            <option value="en attente">En attente</option>
-            <option value="en retard">En retard</option>
-          </select>
-          <select className="filter-select" value={filters.category}
-            onChange={e => setFilters({ ...filters, category: e.target.value })}>
-            <option value="tous">Toutes catégories</option>
-            {DEPENSE_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-          </select>
-          <button className="btn-reset-filters" onClick={resetFilters}>↻ Réinitialiser</button>
-        </div>
-      </div>
-
-      <div className="table-container">
-        <table className="depenses-full-table">
-          <thead>
-            <tr>
-              <th onClick={() => toggleSort('id')}>N°{sortIcon('id')}</th>
-              <th onClick={() => toggleSort('date')}>Date{sortIcon('date')}</th>
-              <th onClick={() => toggleSort('dateEcheance')}>Échéance{sortIcon('dateEcheance')}</th>
-              <th>Description</th>
-              <th>Fournisseur</th>
-              <th>Catégorie</th>
-              {/* ✅ Fix Bug 2 : affiche la valeur, pas un input */}
-              <th onClick={() => toggleSort('amount')}>Montant{sortIcon('amount')}</th>
-              <th>Statut</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedData.map(d => (
-              <tr key={d.id} className={d.status === 'en retard' ? 'row-overdue' : ''}>
-                <td className="depense-number" title={d.id}>...{d.id.slice(-5)}</td>
-                <td>{formatDate(d.date)}</td>
-                <td className={d.dateEcheance && new Date(d.dateEcheance) < new Date() && d.status !== 'payé' ? 'date-overdue' : ''}>
-                  {formatDate(d.dateEcheance) || '-'}
-                </td>
-                <td className="depense-desc">
-                  {d.description}
-                  {d.notes && <small className="notes-indicator">📝</small>}
-                </td>
-                <td>{d.fournisseur || '-'}</td>
-                <td><span className="category-badge">{d.category}</span></td>
-                <td className="text-danger">{formatCurrency(Math.abs(d.amount))}</td>
-                <td><StatusBadge status={d.status} /></td>
-                <td>
-                  <div className="action-buttons">
-                    <button className="action-btn" onClick={() => openModal('edit', d)}>✏️</button>
-                    <button className="action-btn delete" onClick={() => openModal('delete', d)}>🗑️</button>
-                  </div>
-                </td>
+      {/* ── Table ── */}
+      <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)] overflow-hidden flex flex-col">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-[var(--bg-subtle)] border-b border-[var(--border)]">
+              <tr>
+                {[{l:'N°',k:'id'}, {l:'Date',k:'date'}, {l:'Échéance',k:'dateEcheance'}, {l:'Description',k:''}, {l:'Fournisseur',k:''}, {l:'Montant',k:'amount'}, {l:'Statut',k:''}, {l:'',k:''}].map(h => (
+                  <th key={h.l} onClick={() => h.k && setSort({ key: h.k, direction: sort.key === h.k && sort.direction === 'desc' ? 'asc' : 'desc' })}
+                      className={`px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-[var(--fg-muted)] whitespace-nowrap ${h.k ? 'cursor-pointer hover:text-[var(--fg)]' : ''}`}>
+                    <div className="flex items-center gap-1.5">
+                      {h.l} {h.k && sort.key === h.k && (sort.direction === 'asc' ? '↑' : '↓')}
+                    </div>
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {!filteredData.length && <NoResults onReset={resetFilters} />}
+            </thead>
+            <tbody className="divide-y divide-[var(--border)]">
+              {loading ? (
+                [...Array(8)].map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    {[...Array(8)].map((__, j) => <td key={j} className="px-5 py-4"><div className="h-3.5 bg-[var(--bg-subtle)] rounded-full w-full" /></td>)}
+                  </tr>
+                ))
+              ) : paginatedData.length > 0 ? (
+                paginatedData.map(d => (
+                  <tr key={d.id} className={`hover:bg-[var(--bg-card-hover)] transition-colors group ${d.status === 'en retard' ? 'bg-red-500/5' : ''}`}>
+                    <td className="px-5 py-4 whitespace-nowrap"><span className="font-mono text-[11px] font-bold text-[var(--fg-subtle)]">{String(d.id).substring(0, 8)}</span></td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 text-[13px] text-[var(--fg-muted)]"><Calendar size={13} /> {new Date(d.date).toLocaleDateString('fr-FR')}</div>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <span className={`text-[12px] font-semibold ${d.dateEcheance && new Date(d.dateEcheance) < new Date() && d.status !== 'payé' ? 'text-red-500' : 'text-[var(--fg-muted)]'}`}>
+                        {d.dateEcheance ? new Date(d.dateEcheance).toLocaleDateString('fr-FR') : '—'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-[var(--fg)] truncate max-w-[200px]" title={d.description}>{d.description}</span>
+                        <span className="text-[11px] text-[var(--fg-subtle)] uppercase tracking-wider font-semibold">{d.category}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap"><span className="text-[13px] text-[var(--fg-muted)]">{d.fournisseur || '—'}</span></td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <div className="font-bold text-[14px] text-red-500">-{formatCurrency(Math.abs(d.amount))}</div>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                        d.status === 'payé' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 
+                        d.status === 'en attente' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : 
+                        'bg-red-500/10 text-red-600 border-red-500/20'
+                      }`}>{d.status}</span>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+                        <button onClick={() => openModal('edit', d)} className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--fg-muted)] hover:bg-indigo-500/10 hover:text-indigo-500 transition-colors" title="Modifier"><Pencil size={14} /></button>
+                        <button onClick={() => setDeleteTarget(d)} className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--fg-muted)] hover:bg-red-500/10 hover:text-red-500 transition-colors" title="Supprimer"><Trash2 size={14} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={8} className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center gap-2 text-[var(--fg-muted)]">
+                      <Search size={28} className="text-[var(--border)] mb-2" />
+                      <p className="font-medium text-[15px]">Aucune dépense trouvée</p>
+                      <p className="text-xs">Modifiez vos filtres ou ajoutez une nouvelle dépense.</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* Pagination Footer */}
+        {sortedData.length > 0 && (
+          <div className="flex items-center justify-between px-5 py-3.5 border-t border-[var(--border)] bg-[var(--bg-subtle)]">
+            <span className="text-xs text-[var(--fg-muted)]">
+              Affiche <span className="font-bold text-[var(--fg)]">{(pagination.currentPage - 1) * pagination.itemsPerPage + 1}</span> à <span className="font-bold text-[var(--fg)]">{Math.min(pagination.currentPage * pagination.itemsPerPage, sortedData.length)}</span> sur <span className="font-bold text-[var(--fg)]">{sortedData.length}</span>
+            </span>
+            <div className="flex items-center gap-2">
+              <select value={pagination.itemsPerPage} onChange={(e) => setPagination({ currentPage: 1, itemsPerPage: Number(e.target.value) })} className="h-8 px-2 text-xs rounded-md bg-[var(--bg-card)] border border-[var(--border)] text-[var(--fg)]">
+                {[10, 25, 50, 100].map(v => <option key={v} value={v}>{v} / page</option>)}
+              </select>
+              <div className="flex gap-1">
+                <button disabled={pagination.currentPage === 1} onClick={() => setPagination(p => ({ ...p, currentPage: p.currentPage - 1 }))} className="flex items-center justify-center w-8 h-8 rounded-md bg-[var(--bg-card)] border border-[var(--border)] text-[var(--fg-muted)] hover:text-[var(--fg)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">←</button>
+                <span className="flex items-center justify-center px-3 text-xs font-semibold text-[var(--fg)]">{pagination.currentPage} / {totalPages}</span>
+                <button disabled={pagination.currentPage === totalPages} onClick={() => setPagination(p => ({ ...p, currentPage: p.currentPage + 1 }))} className="flex items-center justify-center w-8 h-8 rounded-md bg-[var(--bg-card)] border border-[var(--border)] text-[var(--fg-muted)] hover:text-[var(--fg)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">→</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      <Pagination total={filteredData.length} pagination={pagination} setPagination={setPagination} />
+      {/* ── Add/Edit Modal ── */}
+      <Modal isOpen={modal.isOpen} onClose={closeModal} title={modal.mode === 'add' ? 'Nouvelle dépense' : 'Modifier la dépense'} onConfirm={handleSave} confirmText={modal.mode === 'add' ? 'Ajouter' : 'Enregistrer'} size="lg">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <FormField label="Description" id="dep-desc" error={formErrors.description}><input type="text" value={formData.description} onChange={e => setField('description', e.target.value)} className={inputClass} placeholder="Achat fournitures de bureau..." autoFocus /></FormField>
+          </div>
+          
+          <FormField label="Montant (DT)" id="dep-amount" error={formErrors.amount}>
+            <input type="number" step="0.01" min="0" value={formData.amount} onChange={e => setField('amount', e.target.value)} className={`${inputClass} font-mono`} placeholder="0.00" />
+          </FormField>
+          
+          <FormField label="Fournisseur" id="dep-fournisseur">
+            <input type="text" value={formData.fournisseur} onChange={e => setField('fournisseur', e.target.value)} className={inputClass} placeholder="Nom du fournisseur (Optionnel)" />
+          </FormField>
 
-      {modal.isOpen && modal.mode !== 'delete' && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-content modal-depense" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>{modal.mode === 'add' ? '➕ Nouvelle dépense' : '✏️ Modifier la dépense'}</h3>
-              <button className="modal-close" onClick={closeModal}>×</button>
-            </div>
-            <div className="modal-body">
-              {/* ✅ Fix Bug 3 : accounts passé en prop */}
-              <DepenseForm formData={formData} setFormData={setFormData} accounts={accounts} />
-            </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={closeModal}>Annuler</button>
-              <button className="btn-primary" style={{ background: '#4299e1' }}
-                onClick={modal.mode === 'add' ? handleAdd : handleUpdate}>
-                {modal.mode === 'add' ? 'Ajouter' : 'Modifier'}
-              </button>
-            </div>
+          <FormField label="Catégorie" id="dep-cat">
+            <select value={formData.category} onChange={e => setField('category', e.target.value)} className={selectClass}>
+              {DEPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </FormField>
+
+          {modal.mode === 'add' && (
+            <FormField label="Compte de paiement" id="dep-acc" error={formErrors.account}>
+              <select value={formData.account} onChange={e => setField('account', e.target.value)} className={selectClass}>
+                <option value="" disabled>Sélectionner un compte...</option>
+                {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+              </select>
+            </FormField>
+          )}
+
+          <FormField label="Date de la dépense" id="dep-date" error={formErrors.date}>
+            <input type="date" value={formData.date} onChange={e => setField('date', e.target.value)} className={inputClass} />
+          </FormField>
+          
+          <FormField label="Date d'échéance" id="dep-dateEch">
+            <input type="date" value={formData.dateEcheance} onChange={e => setField('dateEcheance', e.target.value)} className={inputClass} />
+          </FormField>
+
+          <FormField label="Statut" id="dep-status">
+            <select value={formData.status} onChange={e => setField('status', e.target.value)} className={selectClass}>
+              <option value="payé">Payé</option>
+              <option value="en attente">En attente</option>
+              <option value="en retard">En retard</option>
+            </select>
+          </FormField>
+
+          <div className="sm:col-span-2">
+            <FormField label="Notes / Référence" id="dep-notes">
+              <textarea value={formData.notes} onChange={e => setField('notes', e.target.value)} className={inputClass} rows={2} placeholder="N° de facture, commentaires..." />
+            </FormField>
           </div>
         </div>
-      )}
+      </Modal>
 
-      {modal.isOpen && modal.mode === 'delete' && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-content modal-small" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>⚠️ Confirmation</h3>
-              <button className="modal-close" onClick={closeModal}>×</button>
-            </div>
-            <div className="modal-body">
-              <p>Êtes-vous sûr de vouloir supprimer cette dépense ?</p>
-              <p className="text-danger">Cette action est irréversible.</p>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={closeModal}>Annuler</button>
-              <button className="btn-danger" onClick={handleDelete}>Supprimer</button>
-            </div>
+      {/* ── Delete Modal ── */}
+      <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Supprimer la dépense" onConfirm={handleDelete} confirmText="Supprimer" confirmVariant="danger" size="sm">
+        <div className="flex flex-col items-center gap-4 py-2 text-center">
+          <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-500/10"><AlertTriangle size={22} className="text-red-500" /></div>
+          <div>
+            <p className="font-semibold text-[var(--fg)] mb-1">Confirmer la suppression ?</p>
+            <p className="text-sm text-[var(--fg-muted)]">Cette dépense sera supprimée et l'historique effacé.</p>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   )
 }
-
-export default DepensesPage

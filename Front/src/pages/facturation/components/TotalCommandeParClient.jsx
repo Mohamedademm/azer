@@ -148,7 +148,7 @@ const TotalCommandeParClient = ({ data }) => {
 
   const btnStyle = {
     background: '#1e293b',
-    color: '#e2e8f0',
+    color: 'var(--fg)',
     border: '1px solid rgba(148,163,184,.2)',
     padding: '6px 10px',
     borderRadius: '6px',
@@ -157,19 +157,11 @@ const TotalCommandeParClient = ({ data }) => {
   };
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        background: 'linear-gradient(145deg,#0f172a,#1e293b)',
-        borderRadius: '16px',
-        padding: '22px',
-        border: '1px solid rgba(148,163,184,.1)',
-      }}
-    >
+    <div ref={containerRef} className="w-full h-full flex flex-col relative group">
 
       {/* HEADER */}
       <div style={{ marginBottom: '18px', display: 'flex', justifyContent: 'space-between' }}>
-        <h3 style={{ color: '#e2e8f0' }}>Commandes par client</h3>
+        <h3 style={{ color: 'var(--fg)' }}>Commandes par client</h3>
 
         {/* BUTTONS (only change here) */}
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -199,8 +191,8 @@ const TotalCommandeParClient = ({ data }) => {
                   borderLeft: isActive ? '3px solid #60a5fa' : '3px solid transparent',
                 }}
               >
-                <td style={{ padding: '10px', color: '#e2e8f0' }}>{i + 1}</td>
-                <td style={{ padding: '10px', color: '#e2e8f0' }}>{c.name}</td>
+                <td style={{ padding: '10px', color: 'var(--fg)' }}>{i + 1}</td>
+                <td style={{ padding: '10px', color: 'var(--fg)' }}>{c.name}</td>
                 <td style={{ padding: '10px', color: '#60a5fa', fontWeight: 600 }}>{c.count}</td>
                 <td style={{ padding: '10px', color: '#34d399', fontWeight: 600 }}>
                   {c.total.toLocaleString()} DT

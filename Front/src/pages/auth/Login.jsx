@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Lock, Mail, ArrowRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import authService from '../../services/authService';
 import { isAuthenticated, getUserRole, getHomePathForRole } from '../../utils/auth';
-import './Login.css';
 
-function Login() {
-  const [email, setEmail] = useState('');
+export default function Login() {
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError]       = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [showPwd, setShowPwd]   = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -22,14 +23,12 @@ function Login() {
     e.preventDefault();
     setLoading(true);
     setError('');
-
     try {
       const result = await authService.login(email, password);
-
       if (result.success) {
         navigate(getHomePathForRole(result.user.role), { replace: true });
       } else {
-        setError(result.message || 'Echec de connexion');
+        setError(result.message || 'Identifiants incorrects');
       }
     } catch {
       setError('Une erreur inattendue est survenue');
@@ -39,127 +38,204 @@ function Login() {
   };
 
   return (
-    <div className="login-container">
+    <div className="login-page">
       {/* Animated background */}
-      <div className="bg-grid" />
-      <div className="bg-orb bg-orb--1" />
-      <div className="bg-orb bg-orb--2" />
-      <div className="bg-orb bg-orb--3" />
+      <div className="login-bg-mesh" />
+      <div className="login-grid" />
 
-      <div className="login-card">
-        {/* Brand stripe */}
-        <div className="card-accent" />
+      {/* Floating particles (subtle) */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {[...Array(6)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute rounded-full opacity-20"
+            style={{
+              width:  `${[4,6,3,5,4,3][i]}px`,
+              height: `${[4,6,3,5,4,3][i]}px`,
+              background: '#6366f1',
+              top:  `${[15,70,40,85,25,60][i]}%`,
+              left: `${[20,75,50,30,80,10][i]}%`,
+              animation: `pulse-slow ${[3,4,3.5,5,2.5,4][i]}s ease-in-out infinite`,
+              animationDelay: `${[0,1,2,0.5,1.5,2.5][i]}s`,
+            }}
+          />
+        ))}
+      </div>
 
-        <div className="login-header">
-          <div className="brand-badge">
-            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="2" y="2" width="12" height="12" rx="3" fill="currentColor" opacity="1"/>
-              <rect x="18" y="2" width="12" height="12" rx="3" fill="currentColor" opacity="0.6"/>
-              <rect x="2" y="18" width="12" height="12" rx="3" fill="currentColor" opacity="0.6"/>
-              <rect x="18" y="18" width="12" height="12" rx="3" fill="currentColor" opacity="0.3"/>
+      <motion.div
+        className="login-card"
+        initial={{ opacity: 0, y: 24, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      >
+        {/* Top glow line */}
+        <div className="login-card-glow" />
+
+        {/* Brand */}
+        <div className="text-center mb-8">
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.1, duration: 0.35 }}
+            className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-5"
+            style={{
+              background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+              boxShadow: '0 8px 24px rgba(99,102,241,0.45)',
+            }}
+          >
+            <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+              <rect x="2" y="2"   width="12" height="12" rx="3" fill="white" opacity="1"   />
+              <rect x="18" y="2"  width="12" height="12" rx="3" fill="white" opacity="0.6" />
+              <rect x="2" y="18"  width="12" height="12" rx="3" fill="white" opacity="0.6" />
+              <rect x="18" y="18" width="12" height="12" rx="3" fill="white" opacity="0.3" />
             </svg>
-          </div>
-          <h1 className="brand-name">ERP System</h1>
-          <p className="brand-sub">Plateforme de gestion intégrée</p>
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15, duration: 0.3 }}
+            className="text-2xl font-bold text-white tracking-tight"
+          >
+            Azer ERP
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.3 }}
+            className="text-sm text-slate-400 mt-1"
+          >
+            Connectez-vous à votre espace de gestion
+          </motion.p>
         </div>
 
-        <div className="divider" />
+        {/* Divider */}
+        <div className="h-px bg-white/8 mb-6" />
 
-        {error && (
-          <div className="error-message" role="alert">
-            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd"/>
-            </svg>
-            {error}
-          </div>
-        )}
+        {/* Error */}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -8, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: 'auto' }}
+              exit={{ opacity: 0, y: -8, height: 0 }}
+              className="flex items-center gap-2.5 mb-5 px-4 py-3 rounded-lg bg-red-500/12 border border-red-500/20 text-red-400 text-sm"
+              role="alert"
+            >
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20" className="flex-shrink-0">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+              </svg>
+              {error}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="field">
-            <label htmlFor="email" className="field-label">Adresse email</label>
-            <div className="field-wrap">
-              <span className="field-icon">
-                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                  <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.162V6a2 2 0 00-2-2H3z"/>
-                  <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z"/>
-                </svg>
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          {/* Email */}
+          <div className="flex flex-col gap-2">
+            <label htmlFor="login-email" className="text-[12.5px] font-semibold text-slate-400 tracking-wide">
+              Adresse email
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
+                <Mail size={15} />
               </span>
               <input
-                id="email"
+                id="login-email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
                 placeholder="admin@company.com"
                 required
                 disabled={loading}
-                className="field-input"
                 autoComplete="email"
+                className={[
+                  'w-full h-11 pl-10 pr-4 rounded-xl text-sm',
+                  'bg-white/5 border border-white/10 text-white',
+                  'placeholder:text-slate-600',
+                  'outline-none transition-all duration-150',
+                  'focus:bg-white/7 focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20',
+                  'disabled:opacity-50 disabled:cursor-not-allowed',
+                ].join(' ')}
               />
             </div>
           </div>
 
-          <div className="field">
-            <label htmlFor="password" className="field-label">Mot de passe</label>
-            <div className="field-wrap">
-              <span className="field-icon">
-                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                  <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd"/>
-                </svg>
+          {/* Password */}
+          <div className="flex flex-col gap-2">
+            <label htmlFor="login-password" className="text-[12.5px] font-semibold text-slate-400 tracking-wide">
+              Mot de passe
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
+                <Lock size={15} />
               </span>
               <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
+                id="login-password"
+                type={showPwd ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
                 disabled={loading}
-                className="field-input"
                 autoComplete="current-password"
+                className={[
+                  'w-full h-11 pl-10 pr-11 rounded-xl text-sm',
+                  'bg-white/5 border border-white/10 text-white',
+                  'placeholder:text-slate-600',
+                  'outline-none transition-all duration-150',
+                  'focus:bg-white/7 focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20',
+                  'disabled:opacity-50 disabled:cursor-not-allowed',
+                ].join(' ')}
               />
               <button
                 type="button"
-                className="toggle-password"
-                onClick={() => setShowPassword(!showPassword)}
+                onClick={() => setShowPwd(v => !v)}
                 tabIndex={-1}
-                aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                aria-label={showPwd ? 'Masquer' : 'Afficher'}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
               >
-                {showPassword ? (
-                  <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                    <path fillRule="evenodd" d="M3.28 2.22a.75.75 0 00-1.06 1.06l14.5 14.5a.75.75 0 101.06-1.06l-1.745-1.745a10.029 10.029 0 003.3-4.38 1.651 1.651 0 000-1.185A10.004 10.004 0 009.999 3a9.956 9.956 0 00-4.744 1.194L3.28 2.22zM7.752 6.69l1.092 1.092a2.5 2.5 0 013.374 3.373l1.091 1.092a4 4 0 00-5.557-5.557z" clipRule="evenodd"/>
-                    <path d="M10.748 13.93l2.523 2.524a9.987 9.987 0 01-3.27.547c-4.258 0-7.894-2.66-9.337-6.41a1.651 1.651 0 010-1.186A10.007 10.007 0 012.839 6.02L6.07 9.252a4 4 0 004.678 4.678z"/>
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                    <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/>
-                    <path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41z" clipRule="evenodd"/>
-                  </svg>
-                )}
+                {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
             </div>
           </div>
 
-          <button type="submit" className="submit-btn" disabled={loading}>
+          {/* Submit */}
+          <motion.button
+            type="submit"
+            disabled={loading}
+            whileHover={!loading ? { scale: 1.01 } : {}}
+            whileTap={!loading ? { scale: 0.99 } : {}}
+            className={[
+              'flex items-center justify-center gap-2 mt-2 w-full h-11 rounded-xl',
+              'text-sm font-bold text-white',
+              'bg-gradient-to-r from-indigo-600 to-violet-600',
+              'shadow-lg shadow-indigo-500/30',
+              'transition-all duration-200',
+              'hover:shadow-indigo-500/50 hover:from-indigo-500 hover:to-violet-500',
+              'disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none',
+            ].join(' ')}
+          >
             {loading ? (
               <>
-                <span className="spinner" />
-                Connexion en cours…
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Connexion en cours...</span>
               </>
             ) : (
               <>
-                Se connecter
-                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                  <path fillRule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z" clipRule="evenodd"/>
-                </svg>
+                <span>Se connecter</span>
+                <ArrowRight size={16} />
               </>
             )}
-          </button>
+          </motion.button>
         </form>
 
-       
-      </div>
+        {/* Footer */}
+        <p className="text-center text-[11.5px] text-slate-600 mt-6">
+          Azer ERP — Plateforme de gestion intégrée
+        </p>
+      </motion.div>
     </div>
   );
 }
-
-export default Login;

@@ -120,7 +120,7 @@ const FactureStatus = ({ labels, dataPaye, dataImpaye }) => {
 
   const btnStyle = {
     background: '#1e293b',
-    color: '#e2e8f0',
+    color: 'var(--fg)',
     border: '1px solid rgba(148,163,184,.2)',
     padding: '6px 10px',
     borderRadius: '6px',
@@ -129,16 +129,7 @@ const FactureStatus = ({ labels, dataPaye, dataImpaye }) => {
   };
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        background: 'linear-gradient(145deg, #0f172a, #1e293b)',
-        borderRadius: '16px',
-        padding: '22px',
-        border: '1px solid rgba(148,163,184,0.1)',
-        fontFamily: "'Inter', 'Segoe UI', sans-serif",
-      }}
-    >
+    <div ref={containerRef} className="w-full h-full flex flex-col relative group">
 
       {/* HEADER */}
       <div style={{
@@ -148,10 +139,10 @@ const FactureStatus = ({ labels, dataPaye, dataImpaye }) => {
         marginBottom: '14px'
       }}>
         <div>
-          <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0', margin: 0 }}>
+          <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--fg)', margin: 0 }}>
             Statut des factures
           </h3>
-          <p style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--fg-muted)', marginTop: '2px' }}>
             Janvier – Juin
           </p>
         </div>

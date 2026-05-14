@@ -220,7 +220,7 @@ transactionSchema.virtual('type').get(function() {
  */
 
 // Valider une transaction
-transactionSchema.methods.validate = async function(userId, note) {
+transactionSchema.methods.validateTransaction = async function(userId, note) {
   if (this.status !== 'brouillon') {
     throw new Error('Seules les transactions en brouillon peuvent être validées');
   }

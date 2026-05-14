@@ -1,9 +1,11 @@
-// src/pages/facturation/pages/SettingsPage.jsx
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { User, Mail, Phone, Building2, Shield, Lock, Save, CheckCircle, AlertTriangle } from 'lucide-react'
 import userService from '../../../services/userService'
 import { getUserEmail, getUserRole } from '../../../utils/auth'
 import { extractApiErrorMessage } from '../../../utils/frontendApiAdapters'
-import'./SettingsPage.css'
+
+const inputClass = "w-full h-10 px-3 py-2 bg-[var(--bg-card)] text-[var(--fg)] text-sm border border-[var(--border)] rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-[var(--fg-subtle)]"
 
 export default function SettingsPage() {
   const [userSettings, setUserSettings] = useState({
@@ -12,6 +14,7 @@ export default function SettingsPage() {
   })
   const [message, setMessage] = useState({ type: '', text: '' })
   const [updating, setUpdating] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let active = true
@@ -23,16 +26,18 @@ export default function SettingsPage() {
       const p = res?.data || res
       setUserSettings(u => ({
         ...u,
-        firstName:  p?.firstName  || (fallbackRole==='admin_principal' ? 'Admin' : 'Gestionnaire'),
-        lastName:   p?.lastName   || (fallbackRole==='admin_principal' ? 'Principal' : 'Facturation'),
-        email:      p?.email      || fallbackEmail,
-        phone:      p?.phone      || '',
+        firstName: p?.firstName || (fallbackRole === 'admin_principal' ? 'Admin' : 'Gestionnaire'),
+        lastName: p?.lastName || (fallbackRole === 'admin_principal' ? 'Principal' : 'Facturation'),
+        email: p?.email || fallbackEmail,
+        phone: p?.phone || '',
         department: p?.department || 'Comptabilité',
-        role:       p?.role       || fallbackRole,
+        role: p?.role || fallbackRole,
       }))
+      setLoading(false)
     }).catch(() => {
       if (!active) return
       setUserSettings(u => ({ ...u, email: fallbackEmail, role: fallbackRole }))
+      setLoading(false)
     })
     return () => { active = false }
   }, [])
@@ -44,48 +49,34 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     if (!userSettings.firstName || !userSettings.lastName || !userSettings.email) {
-      setMessage({ type: 'error', text: 'Prénom, nom et email sont requis' })
-      return
+      return setMessage({ type: 'error', text: 'Prénom, nom et email sont requis' })
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userSettings.email)) {
-      setMessage({ type: 'error', text: "Format d'email invalide" })
-      return
-    }
-    if (userSettings.phone && !/^[0-9+\-\s]+$/.test(userSettings.phone)) {
-      setMessage({ type: 'error', text: 'Format de téléphone invalide' })
-      return
+      return setMessage({ type: 'error', text: "Format d'email invalide" })
     }
     if (userSettings.newPassword || userSettings.confirmPassword || userSettings.currentPassword) {
-      if (!userSettings.currentPassword) {
-        setMessage({ type: 'error', text: 'Mot de passe actuel requis' })
-        return
-      }
-      if (userSettings.newPassword !== userSettings.confirmPassword) {
-        setMessage({ type: 'error', text: 'Les nouveaux mots de passe ne correspondent pas' })
-        return
-      }
-      if (userSettings.newPassword.length < 6) {
-        setMessage({ type: 'error', text: 'Le nouveau mot de passe doit contenir au moins 6 caractères' })
-        return
-      }
+      if (!userSettings.currentPassword) return setMessage({ type: 'error', text: 'Mot de passe actuel requis' })
+      if (userSettings.newPassword !== userSettings.confirmPassword) return setMessage({ type: 'error', text: 'Les nouveaux mots de passe ne correspondent pas' })
+      if (userSettings.newPassword.length < 6) return setMessage({ type: 'error', text: 'Le nouveau mot de passe doit contenir au moins 6 caractères' })
     }
 
     setUpdating(true)
-    setMessage({ type: 'info', text: 'Mise à jour en cours...' })
+    setMessage({ type: '', text: '' })
 
     try {
       await userService.updateProfile({
         firstName: userSettings.firstName,
-        lastName:  userSettings.lastName,
-        email:     userSettings.email,
-        phone:     userSettings.phone,
+        lastName: userSettings.lastName,
+        email: userSettings.email,
+        phone: userSettings.phone,
         department: userSettings.department,
       })
       if (userSettings.newPassword) {
         await userService.changePassword(userSettings.currentPassword, userSettings.newPassword)
       }
       setMessage({ type: 'success', text: 'Profil mis à jour avec succès !' })
-      setUserSettings(u => ({ ...u, currentPassword:'', newPassword:'', confirmPassword:'' }))
+      setUserSettings(u => ({ ...u, currentPassword: '', newPassword: '', confirmPassword: '' }))
+      setTimeout(() => setMessage({ type: '', text: '' }), 4000)
     } catch (err) {
       setMessage({ type: 'error', text: extractApiErrorMessage(err, 'Impossible de mettre à jour le profil') })
     } finally {
@@ -93,80 +84,109 @@ export default function SettingsPage() {
     }
   }
 
+  if (loading) return (
+    <div className="flex flex-col gap-6 max-w-4xl mx-auto animate-pulse">
+      <div className="h-20 bg-[var(--bg-card)] rounded-2xl border border-[var(--border)]" />
+      <div className="h-64 bg-[var(--bg-card)] rounded-2xl border border-[var(--border)]" />
+      <div className="h-40 bg-[var(--bg-card)] rounded-2xl border border-[var(--border)]" />
+    </div>
+  )
+
   return (
-    <div className="settings-tab">
-      <h2>⚙️ Paramètres du profil</h2>
+    <div className="flex flex-col gap-6 max-w-4xl mx-auto">
+      {/* ── Header ── */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-indigo-500/12 text-indigo-500">
+          <User size={20} />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-[var(--fg)]">Paramètres du profil</h1>
+          <p className="text-xs text-[var(--fg-muted)]">Gérez vos informations personnelles et vos préférences</p>
+        </div>
+      </div>
 
-      {message.text && <div className={`settings-message ${message.type}`}>{message.text}</div>}
+      <AnimatePresence>
+        {message.text && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+            className={`flex items-center gap-3 p-4 rounded-xl border font-medium text-sm ${message.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'}`}>
+            {message.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
+            {message.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div className="settings-form">
-        <div className="settings-section">
-          <h3>Informations personnelles</h3>
-          <div className="settings-row">
-            <div className="settings-group">
-              <label>Prénom</label>
-              <input type="text" name="firstName" value={userSettings.firstName} onChange={handleChange} placeholder="Votre prénom"/>
+      <div className="flex flex-col gap-6">
+        {/* Informations personnelles */}
+        <div className="p-6 bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)]">
+          <h2 className="text-sm font-bold text-[var(--fg)] uppercase tracking-wider mb-5 flex items-center gap-2">
+            <User size={16} className="text-indigo-500" /> Informations personnelles
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[12px] font-semibold text-[var(--fg-muted)]">Prénom</label>
+              <input type="text" name="firstName" value={userSettings.firstName} onChange={handleChange} className={inputClass} placeholder="Votre prénom" />
             </div>
-            <div className="settings-group">
-              <label>Nom</label>
-              <input type="text" name="lastName" value={userSettings.lastName} onChange={handleChange} placeholder="Votre nom"/>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[12px] font-semibold text-[var(--fg-muted)]">Nom</label>
+              <input type="text" name="lastName" value={userSettings.lastName} onChange={handleChange} className={inputClass} placeholder="Votre nom" />
             </div>
-          </div>
-          <div className="settings-row">
-            <div className="settings-group">
-              <label>Email</label>
-              <input type="email" name="email" value={userSettings.email} onChange={handleChange} placeholder="votre@email.com"/>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[12px] font-semibold text-[var(--fg-muted)] flex items-center gap-1"><Mail size={12} /> Email</label>
+              <input type="email" name="email" value={userSettings.email} onChange={handleChange} className={inputClass} placeholder="votre@email.com" />
             </div>
-            <div className="settings-group">
-              <label>Téléphone</label>
-              <input type="tel" name="phone" value={userSettings.phone} onChange={handleChange} placeholder=""/>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[12px] font-semibold text-[var(--fg-muted)] flex items-center gap-1"><Phone size={12} /> Téléphone</label>
+              <input type="tel" name="phone" value={userSettings.phone} onChange={handleChange} className={inputClass} placeholder="+216 ..." />
             </div>
           </div>
         </div>
 
-        <div className="settings-section">
-          <h3>Informations professionnelles</h3>
-          <div className="settings-row">
-            <div className="settings-group">
-              <label>Département</label>
-              <input type="text" name="department" value={userSettings.department} onChange={handleChange} placeholder="Votre département"/>
+        {/* Informations professionnelles */}
+        <div className="p-6 bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)]">
+          <h2 className="text-sm font-bold text-[var(--fg)] uppercase tracking-wider mb-5 flex items-center gap-2">
+            <Building2 size={16} className="text-indigo-500" /> Informations professionnelles
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[12px] font-semibold text-[var(--fg-muted)]">Département</label>
+              <input type="text" name="department" value={userSettings.department} onChange={handleChange} className={inputClass} placeholder="Votre département" />
             </div>
-            <div className="settings-group">
-              <label>Rôle</label>
-              <input type="text" value={userSettings.role} disabled style={{backgroundColor:'#f7fafc',cursor:'not-allowed'}}/>
-              <small>Le rôle ne peut pas être modifié</small>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[12px] font-semibold text-[var(--fg-muted)] flex items-center gap-1"><Shield size={12} /> Rôle (Lecture seule)</label>
+              <input type="text" value={userSettings.role} disabled className={`${inputClass} bg-[var(--bg-subtle)] opacity-70 cursor-not-allowed`} />
             </div>
           </div>
         </div>
 
-        <div className="settings-section">
-          <h3>Changer le mot de passe</h3>
-          <p className="settings-hint">Laissez vide si vous ne souhaitez pas changer votre mot de passe</p>
-          <div className="settings-group">
-            <label>Mot de passe actuel</label>
-            <input type="password" name="currentPassword" value={userSettings.currentPassword} onChange={handleChange} placeholder=""/>
+        {/* Sécurité */}
+        <div className="p-6 bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)]">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-sm font-bold text-[var(--fg)] uppercase tracking-wider flex items-center gap-2">
+              <Lock size={16} className="text-indigo-500" /> Sécurité
+            </h2>
+            <span className="text-xs text-[var(--fg-subtle)]">Laissez vide pour conserver le mot de passe actuel</span>
           </div>
-          <div className="settings-row">
-            <div className="settings-group">
-              <label>Nouveau mot de passe</label>
-              <input type="password" name="newPassword" value={userSettings.newPassword} onChange={handleChange} placeholder=""/>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="flex flex-col gap-1.5 md:col-span-2">
+              <label className="text-[12px] font-semibold text-[var(--fg-muted)]">Mot de passe actuel</label>
+              <input type="password" name="currentPassword" value={userSettings.currentPassword} onChange={handleChange} className={inputClass} placeholder="Requis si vous souhaitez changer le mot de passe" />
             </div>
-            <div className="settings-group">
-              <label>Confirmer</label>
-              <input type="password" name="confirmPassword" value={userSettings.confirmPassword} onChange={handleChange} placeholder=""/>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[12px] font-semibold text-[var(--fg-muted)]">Nouveau mot de passe</label>
+              <input type="password" name="newPassword" value={userSettings.newPassword} onChange={handleChange} className={inputClass} placeholder="Minimum 6 caractères" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[12px] font-semibold text-[var(--fg-muted)]">Confirmer le mot de passe</label>
+              <input type="password" name="confirmPassword" value={userSettings.confirmPassword} onChange={handleChange} className={inputClass} placeholder="Répétez le nouveau mot de passe" />
             </div>
           </div>
-          <small>Minimum 6 caractères</small>
         </div>
 
-        <div className="settings-actions">
-          <button
-            className="btn-primary"
-            onClick={handleSave}
-            disabled={updating}
-            style={{width:'100%',background:'#667eea'}}
-          >
-            {updating ? 'Mise à jour en cours...' : 'Enregistrer les modifications'}
+        {/* Actions */}
+        <div className="flex justify-end pt-4">
+          <button onClick={handleSave} disabled={updating} className="flex items-center gap-2 h-10 px-8 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm shadow-indigo-500/25 transition-all disabled:opacity-50 hover:-translate-y-px">
+            {updating ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={16} />}
+            {updating ? 'Mise à jour...' : 'Enregistrer les modifications'}
           </button>
         </div>
       </div>

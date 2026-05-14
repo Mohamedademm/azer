@@ -60,13 +60,13 @@ const CategoryBarChart = ({ categoriesData }) => {
           x: {
             beginAtZero: true,
             grid: { color: 'rgba(148,163,184,0.1)', drawBorder: false },
-            ticks: { color: '#94a3b8', font: { size: 11 } },
+            ticks: { color: 'var(--fg-muted)', font: { size: 11 } },
             border: { display: false },
           },
           y: {
             grid: { display: false },
             ticks: {
-              color: '#cbd5e1',
+              color: 'var(--fg-muted)',
               font: { size: 12, weight: '500' },
               padding: 8,
             },
@@ -128,16 +128,7 @@ const CategoryBarChart = ({ categoriesData }) => {
     .reduce((a, b) => a + b, 0);
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        background: 'linear-gradient(145deg, #0f172a 0%, #1e293b 100%)',
-        borderRadius: '16px',
-        padding: '24px',
-        border: '1px solid rgba(148,163,184,0.12)',
-        fontFamily: "'Inter', 'Segoe UI', sans-serif",
-      }}
-    >
+    <div ref={containerRef} className="w-full h-full flex flex-col relative group">
 
       {/* HEADER */}
       <div style={{
@@ -149,7 +140,7 @@ const CategoryBarChart = ({ categoriesData }) => {
         <div>
           <h3 style={{
             margin: 0,
-            color: '#f1f5f9',
+            color: 'var(--fg)',
             fontSize: '15px',
             fontWeight: '600',
           }}>
@@ -187,7 +178,7 @@ const CategoryBarChart = ({ categoriesData }) => {
 /* ================= STYLE BTN ================= */
 const btn = {
   background: '#1e293b',
-  color: '#e2e8f0',
+  color: 'var(--fg)',
   border: '1px solid rgba(148,163,184,.2)',
   padding: '6px 10px',
   borderRadius: '6px',

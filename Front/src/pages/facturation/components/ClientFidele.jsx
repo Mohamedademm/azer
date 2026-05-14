@@ -65,8 +65,8 @@ const FideliteLineChart = ({ clients, selected, chartRefExport }) => {
           }
         },
         scales: {
-          x: { ticks: { color: '#94a3b8' } },
-          y: { ticks: { color: '#94a3b8' } }
+          x: { ticks: { color: 'var(--fg-muted)' } },
+          y: { ticks: { color: 'var(--fg-muted)' } }
         }
       }
     });
@@ -127,16 +127,7 @@ const ClientFidele = ({ data }) => {
 
   /* ================= UI ================= */
   return (
-    <div
-      ref={containerRef}
-      style={{
-        background:'linear-gradient(145deg,#0f172a,#1e293b)',
-        borderRadius:16,
-        padding:22,
-        color:'#e2e8f0',
-        border:'1px solid rgba(148,163,184,.1)'
-      }}
-    >
+    <div ref={containerRef} className="w-full h-full flex flex-col relative group">
 
       {/* HEADER */}
       <div style={{
@@ -210,7 +201,7 @@ const ClientFidele = ({ data }) => {
 const btn = {
   background:'#1e293b',
   border:'1px solid rgba(148,163,184,.2)',
-  color:'#e2e8f0',
+  color: 'var(--fg)',
   padding:'6px 10px',
   borderRadius:8,
   fontSize:11,

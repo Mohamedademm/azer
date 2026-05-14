@@ -1,315 +1,290 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import { FolderTree, Plus, Pencil, Trash2, Search, X, Package, AlertTriangle } from 'lucide-react'
 import categoryService from '../../../services/categoryService'
 import productService from '../../../services/productService'
-import supplierService from '../../../services/supplierService'
-import './CategoriesPage.css'
-import {
-  extractApiErrorMessage,
-  mapCategoryToUi,
-  mapProductToUi,
-  mapSupplierToUi,
-  pickList,
-} from '../../../utils/frontendApiAdapters'
+import { extractApiErrorMessage, mapCategoryToUi, mapProductToUi, pickList } from '../../../utils/frontendApiAdapters'
 import Modal from '../../../components/common/Modal'
 import StatusBadge from '../../../components/common/StatusBadge'
 import FormField from '../../../components/common/FormField'
 
-function CategoriesPage() {
+const inputClass = 'form-input'
+
+export default function CategoriesPage() {
   const navigate = useNavigate()
+  const [categories, setCategories] = useState([])
+  const [products, setProducts]     = useState([])
+  const [stats, setStats]           = useState(null)
+  const [loading, setLoading]       = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
 
-  // Data
-  const [cat, setCat] = useState([])
-  const [prod, setProd] = useState([])
-  const [supp, setSupp] = useState([])
-//supprimer 
-const [modDelete, setModDelete] = useState(false)
-const [catToDelete, setCatToDelete] = useState(null)
-// message de succes 
-const [msg, setMsg] = useState(null)
-  // statistique 
-  const [stats, setStats] = useState(null);
-  // Filters
-  const [f, setF] = useState({ categorySearch: "" })
+  // Modals state
+  const [modalOpen, setModalOpen]   = useState(false)
+  const [editCat, setEditCat]       = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [productsModal, setProductsModal] = useState(null)
 
-  // Modals
-  const [modCategory, setModCategory] = useState(false)
-  const [modCategoryProducts, setModCategoryProducts] = useState(false)
-  const [sc, setSc] = useState(null)
+  // Form state
+  const [formData, setFormData]     = useState({ name: '', code: '', description: '' })
+  const [formErrors, setFormErrors] = useState({})
+  const [toastMsg, setToastMsg]     = useState({ type: '', text: '' })
 
-  // Form
-  const [ec, setEc] = useState(null)
-  const [cf, setCf] = useState({ name: "", code: "", description: "" })
-  const [fe, setFe] = useState({})
+  const showToast = (type, text) => {
+    setToastMsg({ type, text })
+    setTimeout(() => setToastMsg({ type: '', text: '' }), 3500)
+  }
 
-  // Load data
- const loadData = useCallback(async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true)
     try {
-      // قمنا بإضافة statsRes هنا ليتم تعيين نتائج categoryService.getStats() إليه
-      const [categoryRes, productRes, supplierRes, statsRes] = await Promise.all([
+      const [catRes, prodRes, statsRes] = await Promise.all([
         categoryService.getAll({ limit: 200 }),
         productService.getAll({ limit: 200 }),
-        supplierService.getAll({ limit: 200 }),
         categoryService.getStats(),
-      ]);
-
-      setCat(pickList(categoryRes, ['categories', 'data']).map(mapCategoryToUi));
-      setProd(pickList(productRes, ['products', 'data']).map(mapProductToUi));
-      setSupp(pickList(supplierRes, ['suppliers', 'data']).map(mapSupplierToUi));
-      
-      // الآن statsRes معرفة ومتاحة هنا
-      setStats(statsRes); 
-    } catch (error) {
-      console.error('CategoriesPage load error:', error);
-    }
-  }, []);
+      ])
+      setCategories(pickList(catRes, ['categories', 'data']).map(mapCategoryToUi))
+      setProducts(pickList(prodRes, ['products', 'data']).map(mapProductToUi))
+      setStats(statsRes)
+    } catch (e) { console.error(e) }
+    finally { setLoading(false) }
+  }, [])
 
   useEffect(() => { loadData() }, [loadData])
 
-  // Filtered categories
-  const fc = useMemo(() => cat.filter(c =>
-    !f.categorySearch || c.name.toLowerCase().includes(f.categorySearch.toLowerCase())
-  ), [cat, f.categorySearch])
+  const filtered = useMemo(() => categories.filter(c =>
+    !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase())
+  ), [categories, searchQuery])
 
-  const updateFilter = (k, v) => setF(prev => ({ ...prev, [k]: v }))
+  const resetForm = () => {
+    setFormData({ name: '', code: '', description: '' })
+    setEditCat(null)
+    setFormErrors({})
+  }
 
-  // Validation
-  const vCat = useCallback(() => {
+  const openAdd = () => { resetForm(); setModalOpen(true) }
+  const openEdit = (c) => {
+    setEditCat(c)
+    setFormData({ name: c.name, code: c.code, description: c.description || '' })
+    setModalOpen(true)
+  }
+
+  const validate = () => {
     const e = {}
-    if (!cf.name.trim()) e.name = "Nom requis"; else if (cf.name.length > 50) e.name = "Max 50"
-    if (!cf.code.trim()) e.code = "Clé unique requise (ex: CA-145)"
-    if (cf.description.length > 200) e.description = "Max 200"
+    if (!formData.name.trim()) e.name = 'Nom requis'
+    else if (formData.name.length > 50) e.name = 'Maximum 50 caractères'
+    if (!formData.code.trim()) e.code = 'Code unique requis (ex: CA-145)'
+    if (formData.description.length > 200) e.description = 'Maximum 200 caractères'
     return e
-  }, [cf])
-
-  // Reset
-  const rCat = useCallback(() => {
-    setCf({ name: "", code: "", description: "" })
-    setEc(null)
-    setFe({})
-  }, [])
-
-  // Edit
-  const hdlEditCat = (c) => {
-    setEc(c)
-    setCf({ name: c.name, code: c.code, description: c.description || "" })
-    setModCategory(true)
   }
 
-  // CRUD Remote //  ajouter catégorie
-  const hdlAddCatRemote = async () => {     // validation 
-    const e = vCat(); 
-    if (Object.keys(e).length) return setFe(e)    // condition 
+  const handleSave = async () => {
+    const e = validate()
+    if (Object.keys(e).length) return setFormErrors(e)
     try {
-      //créer catégorie
-      await categoryService.create(
-        { name: cf.name.trim(), 
-          code: cf.code.trim(),
-           description: cf.description.trim() })
-
-      await loadData()  //njbdou data m back end 
-      rCat(); // mise a jour ll liste
-      setModCategory(false) // ysaker el modl
-    } 
-    catch (error) {
-      window.alert(extractApiErrorMessage(error, "Impossible d'ajouter la categorie"))
-    }
-  }
-// mise a jour
-  const hdlUpdCatRemote = async () => {
-    const e = vCat(); 
-    if (Object.keys(e).length)
-       return setFe(e)
-    try {
-      await categoryService.update(
-        ec.id, { name: cf.name.trim(),
-           code: cf.code.trim(),
-            description: cf.description.trim() })
+      const payload = { name: formData.name.trim(), code: formData.code.trim(), description: formData.description.trim() }
+      if (editCat) {
+        await categoryService.update(editCat.id, payload)
+        showToast('success', 'Catégorie modifiée')
+      } else {
+        await categoryService.create(payload)
+        showToast('success', 'Catégorie créée')
+      }
       await loadData()
-      rCat(); setModCategory(false)
-    } catch (error) {
-      window.alert(extractApiErrorMessage(error, "Impossible de modifier la categorie"))
-    }
+      setModalOpen(false)
+    } catch (e) { showToast('error', extractApiErrorMessage(e, "Erreur d'enregistrement")) }
   }
-//supprimer
-const hdlDelCatRemote = async () => {
-  if (!catToDelete?.id) return
 
-  try {
-    await categoryService.delete(catToDelete.id)
-    await loadData()
-
-    setMsg("✅ Catégorie supprimée avec succès")
-
-    setModDelete(false)
-    setCatToDelete(null)
-
-    setTimeout(() => setMsg(null), 3000)
-
-  } catch (error) {
-    window.alert(
-      extractApiErrorMessage(error, "Impossible de supprimer la categorie")
-    )
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      await categoryService.delete(deleteTarget.id)
+      await loadData()
+      showToast('success', 'Catégorie supprimée')
+      setDeleteTarget(null)
+    } catch (e) { showToast('error', extractApiErrorMessage(e, 'Erreur de suppression')) }
   }
-}
+
+  const setField = (k, v) => {
+    setFormData(f => ({ ...f, [k]: v }))
+    setFormErrors(e => { const n = { ...e }; delete n[k]; return n })
+  }
 
   return (
-    <div className="categories-tab">
-      <header className="tab-header">
-        <h2>📑 Catégories</h2>
-        <button className="btn-primary" onClick={() => { rCat(); setModCategory(true) }}>+ Nouvelle</button>
-      </header>
-      {stats && stats.global && (
-  <div className="stats-dashboard" style={{ 
-    display: 'grid', 
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-    gap: '1.5rem', 
-    marginBottom: '2rem' 
-  }}>
-    <div className="stat-card" style={{ 
-      background: '#ffffff', padding: '1.5rem', borderRadius: '12px', 
-      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', borderLeft: '4px solid #4a90e2' 
-    }}>
-      <p style={{ margin: '0', fontSize: '0.9rem', color: '#718096' }}>Total Catégories</p>
-      <h3 style={{ margin: '0.5rem 0 0', fontSize: '1.8rem', color: '#2d3748' }}>{stats.global.totalCategories}</h3>
-    </div>
+    <div className="flex flex-col gap-6">
+      {/* ── Toast ── */}
+      <AnimatePresence>
+        {toastMsg.text && (
+          <motion.div
+            initial={{ opacity: 0, y: -16, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.97 }}
+            className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-[var(--shadow-lg)] text-sm font-semibold border ${
+              toastMsg.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 border-red-500/25 text-red-600 dark:text-red-400'
+            }`}
+          >
+            {toastMsg.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-    <div className="stat-card" style={{ 
-      background: '#ffffff', padding: '1.5rem', borderRadius: '12px', 
-      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', borderLeft: '4px solid #48bb78' 
-    }}>
-      <p style={{ margin: '0', fontSize: '0.9rem', color: '#718096' }}>Total Produits</p>
-      <h3 style={{ margin: '0.5rem 0 0', fontSize: '1.8rem', color: '#2d3748' }}>{stats.global.totalProducts}</h3>
-    </div>
-
-    <div className="stat-card" style={{ 
-      background: '#ffffff', padding: '1.5rem', borderRadius: '12px', 
-      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', borderLeft: '4px solid #ecc94b' 
-    }}>
-      <p style={{ margin: '0', fontSize: '0.9rem', color: '#718096' }}>Catégories Vides</p>
-      <h3 style={{ margin: '0.5rem 0 0', fontSize: '1.8rem', color: '#2d3748' }}>{stats.global.emptyCategories}</h3>
-    </div>
-  </div>
-)}
-
-      {/* Search bar */}
-      <div className="categories-search-bar" style={{ marginBottom: "1.5rem" }}>
-        <div className="search-row">
-          <FormField label="🔍 Rechercher une catégorie" id="search-category-name">
-            <input
-              type="text"
-              placeholder="Nom de la catégorie..."
-              value={f.categorySearch}
-              onChange={e => updateFilter('categorySearch', e.target.value)}
-              className="search-input"
-            />
-          </FormField>
-          {f.categorySearch && <button className="btn-clear-filters" onClick={() => updateFilter('categorySearch', '')}>✖ Effacer</button>}
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-500/12 text-blue-500">
+            <FolderTree size={20} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-[var(--fg)]">Catégories</h1>
+            <p className="text-xs text-[var(--fg-muted)]">Organisez vos produits efficacement</p>
+          </div>
         </div>
-        <div className="search-results-info">{fc.length} catégorie(s)</div>
+        <button
+          onClick={openAdd}
+          className="flex items-center gap-2 h-9 px-5 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-500/25 transition-all hover:-translate-y-px"
+        >
+          <Plus size={16} /> Nouvelle catégorie
+        </button>
       </div>
 
-
-
-
-
-{msg && (
-  <div className="message-success">
-    {msg}
-  </div>
-)}
-
-
-
-      <div className="categories-grid">
-        {fc.length
-          ? fc.map(c => <article key={c.id} className="category-card">
-            <div className="category-icon">📁</div>
-            <div className="category-info">
-              <h3>{c.name}</h3>
-              {c.code && <p style={{ fontSize: '0.8rem', fontFamily: 'monospace', fontWeight: 600, color: '#4a5568' }}>🔑 {c.code}</p>}
-              <p style={{ fontSize: '0.7rem', color: '#a0aec0', fontFamily: 'monospace' }}>ID: {c.id}</p>
-              <p>{c.description}</p>
-              <div className="category-stats">
-                {c.productCount
-                  ? <button className="product-count-link" onClick={() => { setSc(c); setModCategoryProducts(true) }}>📦 <strong>{c.productCount}</strong> produits →</button>
-                  : <span>📦 0 produit</span>}
+      {/* ── Stats ── */}
+      {stats?.global && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { label: 'Total Catégories', value: stats.global.totalCategories, color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
+            { label: 'Total Produits',   value: stats.global.totalProducts,   color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+            { label: 'Catégories Vides', value: stats.global.emptyCategories, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+          ].map(s => (
+            <div key={s.label} className="flex items-center gap-4 p-5 rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--shadow-sm)]">
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl" style={{ background: s.bg, color: s.color }}>
+                <FolderTree size={22} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-[var(--fg)] leading-none">{s.value}</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--fg-muted)] mt-1.5">{s.label}</p>
               </div>
             </div>
-            <div className="category-actions">
-              <button className="btn-icon" onClick={() => hdlEditCat(c)}>✏️</button>
-                 <button
-                    className="btn-icon"
-                   onClick={() => {
-                   setCatToDelete(c)
-                   setModDelete(true)
-                    }}
->
-                     🗑️
-                  </button>
+          ))}
+        </div>
+      )}
 
-            </div>
-          </article>)
-          : <div className="no-data-message">Aucune catégorie trouvée</div>}
+      {/* ── Search ── */}
+      <div className="relative max-w-md">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] pointer-events-none" />
+        <input
+          type="text"
+          placeholder="Rechercher une catégorie..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          className="w-full h-10 pl-9 pr-9 rounded-xl text-sm bg-[var(--bg-card)] border border-[var(--border)] text-[var(--fg)] placeholder:text-[var(--fg-subtle)] focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all"
+        />
+        {searchQuery && (
+          <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] hover:text-[var(--fg)]">
+            <X size={14} />
+          </button>
+        )}
       </div>
 
-      {/* Category Modal */}
-      <Modal isOpen={modCategory} onClose={() => { setModCategory(false); rCat() }} title={ec ? '✏️ Modifier' : '➕ Nouvelle catégorie'} onConfirm={ec ? hdlUpdCatRemote : hdlAddCatRemote} confirmText={ec ? 'Modifier' : 'Créer'}>
-        <FormField label="Nom" id="cat-name" error={fe.name}><input type="text" value={cf.name} onChange={e => setCf({ ...cf, name: e.target.value })} autoFocus /></FormField>
-        <FormField label="Code unique (ex: CA-145)" id="cat-code" error={fe.code}><input type="text" value={cf.code} onChange={e => setCf({ ...cf, code: e.target.value })} placeholder="ex: CA-145" /></FormField>
-        <FormField label="Description" id="cat-desc" error={fe.description}><textarea value={cf.description} onChange={e => setCf({ ...cf, description: e.target.value })} rows="3" /></FormField>
+      {/* ── Grid ── */}
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-40 rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] animate-pulse" />
+          ))}
+        </div>
+      ) : filtered.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map(c => (
+            <div key={c.id} className="group relative flex flex-col p-5 rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all hover:-translate-y-1">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500">
+                    <FolderTree size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[var(--fg)]">{c.name}</h3>
+                    {c.code && <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-bold bg-[var(--bg-subtle)] text-[var(--fg-muted)] font-mono">{c.code}</span>}
+                  </div>
+                </div>
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => openEdit(c)} className="w-7 h-7 flex items-center justify-center rounded text-[var(--fg-muted)] hover:bg-blue-500/10 hover:text-blue-500 transition-colors"><Pencil size={13} /></button>
+                  <button onClick={() => setDeleteTarget(c)} className="w-7 h-7 flex items-center justify-center rounded text-[var(--fg-muted)] hover:bg-red-500/10 hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
+                </div>
+              </div>
+              <p className="text-sm text-[var(--fg-subtle)] flex-1 mb-4 line-clamp-2">{c.description || 'Aucune description.'}</p>
+              <div className="pt-4 border-t border-[var(--border)]">
+                <button
+                  onClick={() => setProductsModal(c)}
+                  className="flex items-center justify-between w-full text-sm font-semibold text-[var(--fg-muted)] hover:text-blue-500 transition-colors"
+                >
+                  <span className="flex items-center gap-2"><Package size={16} /> {c.productCount || 0} produits</span>
+                  <span>→</span>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-20 text-[var(--fg-muted)]">
+          <FolderTree size={40} className="text-[var(--border)] mb-4" />
+          <p className="font-medium text-lg">Aucune catégorie trouvée</p>
+          <p className="text-sm">Ajoutez une catégorie pour commencer</p>
+        </div>
+      )}
+
+      {/* ── Modals ── */}
+      <Modal isOpen={modalOpen} onClose={() => { setModalOpen(false); resetForm() }} title={editCat ? 'Modifier la catégorie' : 'Nouvelle catégorie'} onConfirm={handleSave} confirmText={editCat ? 'Enregistrer' : 'Créer'} confirmVariant="primary" size="sm">
+        <div className="flex flex-col gap-4">
+          <FormField label="Nom" id="cat-name" error={formErrors.name}><input type="text" value={formData.name} onChange={e => setField('name', e.target.value)} className={inputClass} autoFocus placeholder="ex: Informatique" /></FormField>
+          <FormField label="Code unique" id="cat-code" error={formErrors.code}><input type="text" value={formData.code} onChange={e => setField('code', e.target.value)} className={`${inputClass} font-mono`} placeholder="ex: CAT-INF" /></FormField>
+          <FormField label="Description" id="cat-desc" error={formErrors.description}><textarea value={formData.description} onChange={e => setField('description', e.target.value)} className={inputClass} rows={3} placeholder="Détails de la catégorie..." /></FormField>
+        </div>
       </Modal>
 
-      {/* Category Products Modal */}
-      <Modal isOpen={modCategoryProducts} onClose={() => setModCategoryProducts(false)} title={`📁 ${sc?.name}`} showConfirm={false}>
-        {sc && <>
-          <div className="category-info-header">
-            <p>{sc.description}</p>
-            <p><strong>{sc.productCount}</strong> produit(s)</p>
+      <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Confirmation de suppression" onConfirm={handleDelete} confirmText="Supprimer" confirmVariant="danger" size="sm">
+        <div className="flex flex-col items-center gap-4 py-2 text-center">
+          <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-500/10"><AlertTriangle size={22} className="text-red-500" /></div>
+          <div>
+            <p className="font-semibold text-[var(--fg)] mb-1">Supprimer "{deleteTarget?.name}" ?</p>
+            <p className="text-sm text-[var(--fg-muted)]">Cette action supprimera définitivement cette catégorie. Assurez-vous qu'elle ne contient pas de produits indispensables.</p>
           </div>
-          <div className="category-products-list">
-            {prod.filter(p => p.category === sc.name).length
-              ? <table className="products-table">
-                <thead><tr><th>Produit</th><th>Fournisseur</th><th>Stock</th><th>Prix</th><th>Statut</th></tr></thead>
-                <tbody>{prod.filter(p => p.category === sc.name).map(p => <tr key={p.id}>
-                  <td className="product-name">{p.name}</td>
-                  <td>{supp.find(s => s.id === p.supplierId)?.name || '-'}</td>
-                  <td className={p.stock === 0 ? "text-danger" : p.stock < 10 ? "text-warning" : ""}><strong>{p.stock}</strong></td>
-                  <td>{p.price} €</td>
-                  <td><StatusBadge status={p.status} /></td>
-                </tr>)}</tbody>
-              </table>
-              : <div className="no-data-message">Aucun produit</div>}
-          </div>
-          <div className="modal-footer-extra">
-            <button className="btn-primary" onClick={() => {
-              setModCategoryProducts(false)
-              navigate('/stock/products?category=' + encodeURIComponent(sc.name))
-            }}>Voir dans Produits</button>
-          </div>
-        </>}
+        </div>
       </Modal>
-      <Modal
-  isOpen={modDelete}
-  onClose={() => {
-    setModDelete(false)
-    setCatToDelete(null)
-  }}
-  title="⚠️ Confirmation"
-  onConfirm={hdlDelCatRemote}
-  confirmText="Supprimer"
->
-  <p>
-    Voulez-vous vraiment supprimer la catégorie{" "}
-    <strong>{catToDelete?.name}</strong> ?
-  </p>
-</Modal>
-      
+
+      <Modal isOpen={!!productsModal} onClose={() => setProductsModal(null)} title={`Produits : ${productsModal?.name}`} showConfirm={false} size="lg">
+        <div className="flex flex-col gap-4">
+          <div className="p-4 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border)] flex justify-between items-center">
+            <div>
+              <p className="font-semibold text-[var(--fg)]">{productsModal?.name}</p>
+              <p className="text-xs text-[var(--fg-muted)]">{productsModal?.description}</p>
+            </div>
+            <span className="px-3 py-1 bg-blue-500/10 text-blue-500 font-bold text-sm rounded-lg">{productsModal?.productCount} produits</span>
+          </div>
+          
+          <div className="border border-[var(--border)] rounded-xl overflow-hidden max-h-[400px] overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-[var(--bg-subtle)] sticky top-0 z-10">
+                <tr><th className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-[var(--fg-muted)]">Produit</th><th className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-[var(--fg-muted)]">Stock</th><th className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-[var(--fg-muted)]">Prix</th></tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)] bg-[var(--bg-card)]">
+                {products.filter(p => p.category === productsModal?.name).map(p => (
+                  <tr key={p.id}>
+                    <td className="px-4 py-3 font-medium text-[var(--fg)]">{p.name}</td>
+                    <td className="px-4 py-3"><span className={`font-bold ${p.stock <= 0 ? 'text-red-500' : p.stock < 10 ? 'text-amber-500' : 'text-emerald-500'}`}>{p.stock}</span></td>
+                    <td className="px-4 py-3 text-[var(--fg-muted)]">{p.price} DT</td>
+                  </tr>
+                ))}
+                {products.filter(p => p.category === productsModal?.name).length === 0 && (
+                  <tr><td colSpan={3} className="px-4 py-8 text-center text-[var(--fg-muted)]">Aucun produit dans cette catégorie</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <button onClick={() => { setProductsModal(null); navigate('/stock/products?category=' + encodeURIComponent(productsModal.name)) }} className="mt-2 w-full flex items-center justify-center h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold hover:bg-blue-500/20 transition-colors">
+            Ouvrir dans Produits →
+          </button>
+        </div>
+      </Modal>
     </div>
-    
   )
-  
-  
 }
-
-export default CategoriesPage

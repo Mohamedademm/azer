@@ -5,6 +5,7 @@ const Payment = require('../models/Payment');
 const Account = require('../models/Account');
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
+const { getMoneyFlowPipeline, summarizeEntries } = require('./moneyFlowController');
 
 // @desc    Export Excel des transactions
 // @route   GET /api/finance/export/excel
@@ -407,9 +408,168 @@ const getFinanceStats = async (req, res) => {
 };
 
 // ✅ UN SEUL export à la fin avec TOUTES les fonctions
+const groupMonthlyMoneyFlow = (entries) => {
+  const formatter = new Intl.DateTimeFormat('fr-FR', { month: 'short', year: 'numeric' });
+  const map = new Map();
+
+  entries.forEach((entry) => {
+    const date = new Date(entry.date);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        label: formatter.format(date),
+        revenues: 0,
+        expenses: 0,
+        net: 0,
+      });
+    }
+
+    const row = map.get(key);
+    if (entry.isExpense) row.expenses += entry.amount;
+    else row.revenues += entry.amount;
+    row.net = row.revenues - row.expenses;
+  });
+
+  return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
+};
+
+const getCashFlow = async (req, res) => {
+  try {
+    const entries = await Transaction.aggregate(getMoneyFlowPipeline({ ...req.query, limit: 5000 }));
+    const totals = summarizeEntries(entries);
+
+    res.json({
+      success: true,
+      data: {
+        entries,
+        monthly: groupMonthlyMoneyFlow(entries),
+        totals,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const getProfitLoss = async (req, res) => {
+  try {
+    const entries = await Transaction.aggregate(getMoneyFlowPipeline({ ...req.query, limit: 5000 }));
+    const revenues = entries.filter((entry) => !entry.isExpense);
+    const expenses = entries.filter((entry) => entry.isExpense);
+    const totals = summarizeEntries(entries);
+
+    res.json({
+      success: true,
+      data: {
+        period: req.query.period || 'monthly',
+        revenues,
+        expenses,
+        totals,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const getBalanceSheet = async (req, res) => {
+  try {
+    const date = req.query.date ? new Date(req.query.date) : new Date();
+    const balance = await Account.getBalanceSheet(date);
+    const accounts = await Account.find({
+      isActive: true,
+      type: { $in: ['actif', 'passif', 'tresorerie'] },
+    }).sort('code');
+
+    res.json({
+      success: true,
+      data: {
+        date,
+        ...balance,
+        accounts,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const getFinancialRatios = async (req, res) => {
+  try {
+    const [balance, entries, cashAccounts] = await Promise.all([
+      Account.getBalanceSheet(new Date()),
+      Transaction.aggregate(getMoneyFlowPipeline({ limit: 5000 })),
+      Account.find({ isActive: true, category: { $in: ['banque', 'caisse'] } }),
+    ]);
+
+    const totals = summarizeEntries(entries);
+    const cash = cashAccounts.reduce((sum, account) => sum + Number(account.balance || 0), 0);
+    const liabilities = Math.max(balance.liabilities || 0, 1);
+
+    res.json({
+      success: true,
+      data: {
+        liquidity: Math.round((cash / liabilities) * 100) / 100,
+        profitability: totals.revenues > 0
+          ? Math.round((totals.net / totals.revenues) * 10000) / 100
+          : 0,
+        debtRatio: balance.assets > 0
+          ? Math.round((balance.liabilities / balance.assets) * 10000) / 100
+          : 0,
+        cash,
+        totals,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const getForecasts = async (req, res) => {
+  try {
+    const months = Math.min(parseInt(req.query.months, 10) || 6, 24);
+    const entries = await Transaction.aggregate(getMoneyFlowPipeline({ limit: 5000 }));
+    const monthly = groupMonthlyMoneyFlow(entries);
+    const sample = monthly.slice(-6);
+    const avgRevenue = sample.length
+      ? sample.reduce((sum, row) => sum + row.revenues, 0) / sample.length
+      : 0;
+    const avgExpenses = sample.length
+      ? sample.reduce((sum, row) => sum + row.expenses, 0) / sample.length
+      : 0;
+
+    const forecast = Array.from({ length: months }, (_, index) => {
+      const date = new Date();
+      date.setMonth(date.getMonth() + index + 1);
+      return {
+        month: date.toISOString().slice(0, 7),
+        revenues: Math.round(avgRevenue * 100) / 100,
+        expenses: Math.round(avgExpenses * 100) / 100,
+        net: Math.round((avgRevenue - avgExpenses) * 100) / 100,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        basedOnMonths: sample.length,
+        forecast,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   exportFinanceExcel,
   exportFinancePDF,
   getFinanceDashboard,
-  getFinanceStats
+  getFinanceStats,
+  getCashFlow,
+  getProfitLoss,
+  getBalanceSheet,
+  getFinancialRatios,
+  getForecasts,
 };

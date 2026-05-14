@@ -2,12 +2,16 @@ const mongoose = require('mongoose');
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/azer_erp';
+    const conn = await mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 10000,
+    });
+
+    console.log(`MongoDB connected: ${conn.connection.host}`);
     return conn;
   } catch (error) {
-    console.error('❌ MongoDB Connection Error:', error);
-    // On ne fait pas process.exit pour voir l'erreur
+    console.error('MongoDB connection failed:', error.message);
+    throw error;
   }
 };
 

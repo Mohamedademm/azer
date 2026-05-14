@@ -128,18 +128,7 @@ const MovementLineChart = ({ labels, dataEntree, dataSortie }) => {
   };
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        background: 'linear-gradient(145deg, #0b1220, #111c33)',
-        borderRadius: '18px',
-        padding: '22px',
-        color: '#fff',
-        fontFamily: 'Inter, sans-serif',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.35)',
-        border: '1px solid rgba(255,255,255,0.05)',
-      }}
-    >
+    <div ref={containerRef} className="w-full h-full flex flex-col relative group">
 
       {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -147,7 +136,7 @@ const MovementLineChart = ({ labels, dataEntree, dataSortie }) => {
           <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
             Mouvements de stock
           </h3>
-          <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>
+          <p style={{ margin: 0, fontSize: '12px', color: 'var(--fg-muted)' }}>
             Analyse Entrées vs Sorties
           </p>
         </div>
@@ -174,7 +163,7 @@ const MovementLineChart = ({ labels, dataEntree, dataSortie }) => {
             alignItems: 'center',
             gap: '6px',
             fontSize: '11px',
-            color: '#94a3b8'
+            color: 'var(--fg-muted)'
           }}>
             <span style={{
               width: '10px',
@@ -201,7 +190,7 @@ const btnStyle = (color) => ({
   border: 'none',
   padding: '6px 12px',
   borderRadius: '8px',
-  color: '#fff',
+  color: 'var(--fg)',
   cursor: 'pointer',
   fontSize: '12px',
   fontWeight: 600,

@@ -20,6 +20,8 @@ const invoiceRoutes = require('./routes/invoiceRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const financeRoutes = require('./routes/financeRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
+const moneyFlowRoutes = require('./routes/moneyFlowRoutes');
+const targetRoutes = require('./routes/targetRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const dashboardFactureRoutes = require('./routes/dashboardFactureRoutes');
@@ -59,7 +61,14 @@ app.use(helmet());
 // ============================================
 // 2. CORS
 // ============================================
-const defaultAllowedOrigins = ['http://localhost:5173', 'http://localhost:5174'];
+const defaultAllowedOrigins = [
+  'http://localhost',
+  'http://127.0.0.1',
+  'http://localhost:80',
+  'http://127.0.0.1:80',
+  'http://localhost:5173',
+  'http://localhost:5174'
+];
 const configuredOrigins = [
   process.env.FRONTEND_URL,
   ...(process.env.FRONTEND_URLS || '').split(',')
@@ -127,6 +136,8 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/money-flow', moneyFlowRoutes);
+app.use('/api/targets', targetRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/depenses', depensesRoutes);

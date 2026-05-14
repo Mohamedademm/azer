@@ -87,13 +87,13 @@ const RecetteDepense = ({ labels, dataRecettes, dataDepenses, dataNet }) => {
         scales: {
           x: {
             grid: { display: false },
-            ticks: { color: '#94a3b8' },
+            ticks: { color: 'var(--fg-muted)' },
           },
           y: {
             beginAtZero: true,
             grid: { color: 'rgba(0,0,0,0.05)' },
             ticks: {
-              color: '#94a3b8',
+              color: 'var(--fg-muted)',
               callback: (v) => (v >= 1000 ? `${v / 1000}k` : v),
             },
           },
@@ -150,7 +150,7 @@ const RecetteDepense = ({ labels, dataRecettes, dataDepenses, dataNet }) => {
 
   const btnStyle = {
     background: '#1e293b',
-    color: '#e2e8f0',
+    color: 'var(--fg)',
     border: '1px solid rgba(148,163,184,.2)',
     padding: '6px 10px',
     borderRadius: '6px',
@@ -159,15 +159,7 @@ const RecetteDepense = ({ labels, dataRecettes, dataDepenses, dataNet }) => {
   };
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        background: '#fff',
-        border: '1px solid rgba(0,0,0,0.08)',
-        borderRadius: 14,
-        padding: '16px',
-      }}
-    >
+    <div ref={containerRef} className="w-full h-full flex flex-col relative group">
 
       {/* HEADER + BUTTONS */}
       <div style={{
@@ -180,7 +172,7 @@ const RecetteDepense = ({ labels, dataRecettes, dataDepenses, dataNet }) => {
           <p style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>
             Recettes vs Dépenses
           </p>
-          <p style={{ fontSize: 12, color: '#94a3b8' }}>
+          <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
             Analyse mensuelle financière
           </p>
         </div>

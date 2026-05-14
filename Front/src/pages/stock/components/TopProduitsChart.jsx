@@ -91,25 +91,14 @@ const TopProduitsChart = ({ labels, dataVentes }) => {
   }, [chartLabels, data]);
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        background: 'linear-gradient(145deg, #0b1220, #111c33)',
-        borderRadius: '18px',
-        padding: '22px',
-        color: '#fff',
-        fontFamily: 'Inter, sans-serif',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.35)',
-        border: '1px solid rgba(255,255,255,0.05)',
-      }}
-    >
+    <div ref={containerRef} className="w-full h-full flex flex-col relative group">
       {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
             Top produits
           </h3>
-          <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>
+          <p style={{ margin: 0, fontSize: '12px', color: 'var(--fg-muted)' }}>
             Répartition des ventes
           </p>
         </div>
@@ -162,7 +151,7 @@ const TopProduitsChart = ({ labels, dataVentes }) => {
                 {label}
               </span>
 
-              <span style={{ color: '#cbd5e1' }}>
+              <span style={{ color: 'var(--fg-muted)' }}>
                 {data[i] || 0} ({percent}%)
               </span>
             </div>
@@ -177,8 +166,8 @@ const TopProduitsChart = ({ labels, dataVentes }) => {
             marginTop: 18,
             padding: 12,
             borderRadius: 12,
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--border)',
           }}
         >
           <h4 style={{ margin: '0 0 10px 0' }}>Détail produit</h4>
@@ -186,15 +175,15 @@ const TopProduitsChart = ({ labels, dataVentes }) => {
           <table style={{ width: '100%', fontSize: 13 }}>
             <tbody>
               <tr>
-                <td style={{ color: '#94a3b8' }}>Produit</td>
+                <td style={{ color: 'var(--fg-muted)' }}>Produit</td>
                 <td>{chartLabels[selectedIndex]}</td>
               </tr>
               <tr>
-                <td style={{ color: '#94a3b8' }}>Quantité</td>
+                <td style={{ color: 'var(--fg-muted)' }}>Quantité</td>
                 <td>{data[selectedIndex]}</td>
               </tr>
               <tr>
-                <td style={{ color: '#94a3b8' }}>%</td>
+                <td style={{ color: 'var(--fg-muted)' }}>%</td>
                 <td>{total ? Math.round(((data[selectedIndex] || 0) / total) * 100) : 0}%</td>
               </tr>
             </tbody>
@@ -211,7 +200,7 @@ const btnStyle = (color) => ({
   border: 'none',
   padding: '6px 12px',
   borderRadius: '8px',
-  color: '#fff',
+  color: 'var(--fg)',
   cursor: 'pointer',
   fontSize: '12px',
   fontWeight: 600,

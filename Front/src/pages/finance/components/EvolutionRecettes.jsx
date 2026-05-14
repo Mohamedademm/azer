@@ -76,7 +76,7 @@ const RecetteEvolution = ({ labels, dataRecette }) => {
           x: {
             grid: { display: false },
             border: { display: false },
-            ticks: { color: '#94a3b8' },
+            ticks: { color: 'var(--fg-muted)' },
           },
 
           y: {
@@ -84,7 +84,7 @@ const RecetteEvolution = ({ labels, dataRecette }) => {
             grid: { color: 'rgba(0,0,0,0.06)' },
             border: { display: false },
             ticks: {
-              color: '#94a3b8',
+              color: 'var(--fg-muted)',
               callback: (v) =>
                 v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v,
             },
@@ -161,7 +161,7 @@ const RecetteEvolution = ({ labels, dataRecette }) => {
 
   const btnStyle = {
     background: '#1e293b',
-    color: '#e2e8f0',
+    color: 'var(--fg)',
     border: '1px solid rgba(148,163,184,.2)',
     padding: '6px 10px',
     borderRadius: '6px',
@@ -170,15 +170,7 @@ const RecetteEvolution = ({ labels, dataRecette }) => {
   };
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        background: '#fff',
-        border: '1px solid rgba(0,0,0,0.08)',
-        borderRadius: 14,
-        padding: '16px',
-      }}
-    >
+    <div ref={containerRef} className="w-full h-full flex flex-col relative group">
 
       {/* HEADER + BUTTONS */}
       <div style={{
@@ -191,7 +183,7 @@ const RecetteEvolution = ({ labels, dataRecette }) => {
           <p style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>
             Évolution des recettes
           </p>
-          <p style={{ fontSize: 12, color: '#94a3b8' }}>
+          <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
             Analyse mensuelle
           </p>
         </div>

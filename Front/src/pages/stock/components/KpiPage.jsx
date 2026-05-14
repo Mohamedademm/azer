@@ -1,110 +1,71 @@
 import React from 'react';
+import { Package, AlertTriangle, Layers, ArrowRightLeft, DollarSign, Users } from 'lucide-react';
 
 const formatNumber = (value) => Number(value || 0).toLocaleString('fr-FR');
 
-export const KpiCard = ({
-  label,
-  value,
-  accent,
-  note,
-  trend,
-  trendUp,
-}) => (
-  <div className="ds-kpi-card" style={{ '--accent': accent }}>
-    <span className="ds-kpi-label">{label}</span>
-
-    <div className="ds-kpi-bottom">
-      <span className="ds-kpi-value">{formatNumber(value)}</span>
-
-      {trend && (
-        <span className={`ds-kpi-trend ${trendUp ? 'up' : 'down'}`}>
-          {trendUp ? '+' : '-'} {trend}
-        </span>
-      )}
+export const KpiCard = ({ label, value, note, icon: Icon, accentClass, bgAccentClass }) => (
+  <div className="flex flex-col p-5 bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all">
+    <div className="flex items-center gap-3 mb-3">
+      <div className={`flex items-center justify-center w-10 h-10 rounded-xl ${bgAccentClass} ${accentClass}`}>
+        {Icon && <Icon size={20} />}
+      </div>
+      <span className="text-sm font-bold text-[var(--fg-muted)] uppercase tracking-wider">{label}</span>
     </div>
-
-    {note && <span className="ds-kpi-note">{note}</span>}
+    <div className="flex flex-col gap-1">
+      <span className="text-2xl font-bold text-[var(--fg)]">{formatNumber(value)}</span>
+      {note && <span className="text-xs text-[var(--fg-subtle)]">{note}</span>}
+    </div>
   </div>
 );
 
 const KpiPage = ({ kpi = {} }) => (
-  <div className="kpi-page">
-    <div className="ds-kpi-row">
-      <div className="ds-kpi-card" style={{ '--accent': '#10b981' }}>
-        <span className="ds-kpi-label">Stock total</span>
-
-        <div className="ds-kpi-bottom">
-          <span className="ds-kpi-value">
-            {formatNumber((kpi.produitsEnStock || 0) + (kpi.produitsEnRupture || 0))}
-          </span>
-          <span className="ds-kpi-note">produits</span>
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
+    {/* Stock Total (Custom Card) */}
+    <div className="flex flex-col p-5 bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)] xl:col-span-2">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500">
+          <Package size={20} />
         </div>
-
-        <div className="ds-kpi-split">
-          <div className="ds-kpi-split-item">
-            <span className="ds-kpi-split-dot" style={{ background: '#10b981' }} />
-            <span className="ds-kpi-split-label">En stock</span>
-            <span className="ds-kpi-split-val">{formatNumber(kpi.produitsEnStock)}</span>
-          </div>
-
-          <div className="ds-kpi-split-item">
-            <span className="ds-kpi-split-dot" style={{ background: '#f43f5e' }} />
-            <span className="ds-kpi-split-label">Rupture</span>
-            <span className="ds-kpi-split-val">{formatNumber(kpi.produitsEnRupture)}</span>
-          </div>
+        <span className="text-sm font-bold text-[var(--fg-muted)] uppercase tracking-wider">Stock total</span>
+      </div>
+      <div className="flex items-end justify-between mt-auto gap-4">
+        <div className="flex flex-col">
+          <span className="text-3xl font-bold text-[var(--fg)]">{formatNumber((kpi.produitsEnStock || 0) + (kpi.produitsEnRupture || 0))}</span>
+          <span className="text-xs text-[var(--fg-subtle)]">produits au total</span>
+        </div>
+        <div className="flex flex-col gap-2 text-xs font-semibold">
+          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500" /> <span className="text-[var(--fg)]">{formatNumber(kpi.produitsEnStock)}</span> <span className="text-[var(--fg-muted)]">en stock</span></div>
+          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-rose-500" /> <span className="text-[var(--fg)]">{formatNumber(kpi.produitsEnRupture)}</span> <span className="text-[var(--fg-muted)]">rupture</span></div>
         </div>
       </div>
-
-      <KpiCard
-        label="Stock faible"
-        value={kpi.lowStock}
-        accent="#f59e0b"
-        note="produits sous seuil"
-      />
-
-      <KpiCard
-        label="Categories"
-        value={kpi.nombreCategories}
-        accent="#6366f1"
-        note="familles de produits"
-      />
-
-      <div className="ds-kpi-card" style={{ '--accent': '#0ea5e9' }}>
-        <span className="ds-kpi-label">Total mouvements</span>
-
-        <div className="ds-kpi-bottom">
-          <span className="ds-kpi-value">{formatNumber(kpi.totalMouvements)}</span>
-        </div>
-
-        <div className="ds-kpi-split">
-          <div className="ds-kpi-split-item">
-            <span className="ds-kpi-split-dot" style={{ background: '#0ea5e9' }} />
-            <span className="ds-kpi-split-label">Entree</span>
-            <span className="ds-kpi-split-val">{formatNumber(kpi.entreeMouvements)}</span>
-          </div>
-
-          <div className="ds-kpi-split-item">
-            <span className="ds-kpi-split-dot" style={{ background: '#f59e0b' }} />
-            <span className="ds-kpi-split-label">Sortie</span>
-            <span className="ds-kpi-split-val">{formatNumber(kpi.sortieMouvements)}</span>
-          </div>
-        </div>
-      </div>
-
-      <KpiCard
-        label="Valeur stock"
-        value={kpi.stockValue}
-        accent="#16a34a"
-        note="valorisation en DT"
-      />
-
-      <KpiCard
-        label="Fournisseurs"
-        value={kpi.totalFournisseurs}
-        accent="#8b5cf6"
-        note="partenaires actifs"
-      />
     </div>
+
+    <KpiCard label="Stock faible" value={kpi.lowStock} note="produits sous seuil" icon={AlertTriangle} accentClass="text-amber-500" bgAccentClass="bg-amber-500/10" />
+    <KpiCard label="Catégories" value={kpi.nombreCategories} note="familles de produits" icon={Layers} accentClass="text-indigo-500" bgAccentClass="bg-indigo-500/10" />
+    
+    {/* Total mouvements (Custom Card) */}
+    <div className="flex flex-col p-5 bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-sm)] xl:col-span-2">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500">
+          <ArrowRightLeft size={20} />
+        </div>
+        <span className="text-sm font-bold text-[var(--fg-muted)] uppercase tracking-wider">Total mouvements</span>
+      </div>
+      <div className="flex items-end justify-between mt-auto gap-4">
+        <div className="flex flex-col">
+          <span className="text-3xl font-bold text-[var(--fg)]">{formatNumber(kpi.totalMouvements)}</span>
+          <span className="text-xs text-[var(--fg-subtle)]">opérations</span>
+        </div>
+        <div className="flex flex-col gap-2 text-xs font-semibold">
+          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500" /> <span className="text-[var(--fg)]">{formatNumber(kpi.entreeMouvements)}</span> <span className="text-[var(--fg-muted)]">entrées</span></div>
+          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-rose-500" /> <span className="text-[var(--fg)]">{formatNumber(kpi.sortieMouvements)}</span> <span className="text-[var(--fg-muted)]">sorties</span></div>
+        </div>
+      </div>
+    </div>
+
+    {/* Valeur & Fournisseurs - hide on smaller screens or fit normally */}
+    <KpiCard label="Valeur stock" value={`${formatNumber(kpi.stockValue)} DT`} note="valorisation estimée" icon={DollarSign} accentClass="text-emerald-500" bgAccentClass="bg-emerald-500/10" />
+    <KpiCard label="Fournisseurs" value={kpi.totalFournisseurs} note="partenaires actifs" icon={Users} accentClass="text-purple-500" bgAccentClass="bg-purple-500/10" />
   </div>
 );
 
