@@ -80,10 +80,15 @@ const allowedOrigins = [...new Set([...defaultAllowedOrigins, ...configuredOrigi
 
 app.use(cors({
   origin: (origin, callback) => {
+    if (origin && origin.endsWith('.vercel.app')) {
+      callback(null, true);
+      return;
+    }
+
     const isLocalDevOrigin = typeof origin === 'string'
       && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
 
-    if (!origin || isLocalDevOrigin || origin.includes('vercel.app') || allowedOrigins.includes(origin)) {
+    if (!origin || isLocalDevOrigin || allowedOrigins.includes(origin)) {
       callback(null, true);
       return;
     }
