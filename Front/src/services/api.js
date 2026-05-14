@@ -3,7 +3,7 @@ import axios from 'axios';
 import { clearAuth } from '../utils/auth';
 
 const IS_DEV = import.meta.env.MODE === 'development';
-const API_URL = import.meta.env.VITE_API_URL || (IS_DEV ? 'http://localhost:3000/api' : '/api');
+const API_URL = IS_DEV ? 'http://localhost:3000/api' : '/api';
 
 const api = axios.create({
   baseURL: API_URL,
