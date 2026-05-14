@@ -1,4 +1,4 @@
-﻿// src/app.js
+// src/app.js
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -83,7 +83,7 @@ app.use(cors({
     const isLocalDevOrigin = typeof origin === 'string'
       && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
 
-    if (!origin || isLocalDevOrigin || allowedOrigins.includes(origin)) {
+    if (!origin || isLocalDevOrigin || origin.includes('vercel.app') || allowedOrigins.includes(origin)) {
       callback(null, true);
       return;
     }
